@@ -1,0 +1,125 @@
+import {
+  Activity, ChevronDown, CircleHelp, Clock3, Columns2, Download, LayoutDashboard,
+  ListFilter, PanelLeftClose, Search, Settings, Star, Table2,
+} from 'lucide-react';
+import { MARKET_SYMBOLS } from '../../config/marketSymbols';
+import { SYSTEM_CONFIG } from '../../config/system';
+import type { TradingWorkspaceViewProps } from './TradingWorkspaceView.types';
+import { MarketOverview } from '../market-overview/MarketOverview';
+import { BacktestOverview } from '../backtest-overview/BacktestOverview';
+
+const watchlist = Object.values(MARKET_SYMBOLS);
+
+export function TradingWorkspaceView({
+  sidebarCollapsed,
+  activeTab,
+  mode,
+  selectedSymbol,
+  tickers,
+  onToggleSidebar,
+  onSetActiveTab,
+  onSetMode,
+  onSetSelectedSymbol,
+}: TradingWorkspaceViewProps) {
+  const selectedMarket = MARKET_SYMBOLS[selectedSymbol];
+  const selectedTicker = tickers[selectedSymbol] ?? {
+    price: selectedMarket.price,
+    change: selectedMarket.change,
+  };
+
+  return (
+    <main className="workstation">
+      <header className="topbar">
+        <div className="brand">
+          <div className="brand-icon"><Activity size={18} /></div>
+          <span>{SYSTEM_CONFIG.ui.brand.name}<span className="brand-accent">{SYSTEM_CONFIG.ui.brand.accent}</span></span>
+          <span className="brand-version">{SYSTEM_CONFIG.ui.brand.workspace}</span>
+        </div>
+        <div className="topbar-divider" />
+        <button className="symbol-select"><span className="coin-icon">{selectedMarket.icon}</span> {selectedSymbol} <ChevronDown className="muted" size={14} /></button>
+        <span className="price-label">{selectedTicker.price} <span className={selectedTicker.change.startsWith('+') ? 'positive' : 'negative'}>{selectedTicker.change}</span></span>
+        <div className="topbar-spacer" />
+        <div className="mode-switch" role="group" aria-label={SYSTEM_CONFIG.ui.topbar.modeAriaLabel}>
+          {SYSTEM_CONFIG.modes.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              className={mode === id ? 'mode-active' : ''}
+              aria-pressed={mode === id}
+              onClick={() => onSetMode(id)}
+            >
+              {id === 'live' && <span className={`live-dot${mode === id ? '' : ' live-dot--inactive'}`} />} {label}
+            </button>
+          ))}
+        </div>
+        <button className="top-button"><Clock3 size={14} /> {SYSTEM_CONFIG.ui.topbar.replay}</button>
+        <button className="top-button"><LayoutDashboard size={14} /> {SYSTEM_CONFIG.ui.topbar.layout}</button>
+        <button className="top-button"><Download size={14} /> {SYSTEM_CONFIG.ui.topbar.snapshot}</button>
+        <button className="icon-button" title={SYSTEM_CONFIG.ui.topbar.settingsTitle}><Settings size={16} /></button>
+        <div className="connection"><span className="live-dot" /> {SYSTEM_CONFIG.ui.topbar.connectionStatus}</div>
+      </header>
+
+      <div className="workspace-body">
+        <aside className={`sidebar ${sidebarCollapsed ? 'sidebar--collapsed' : ''}`}>
+          <div className="sidebar-head">
+            {!sidebarCollapsed && <span>{SYSTEM_CONFIG.ui.sidebar.markets}</span>}
+            <button className="icon-button" onClick={onToggleSidebar} title={sidebarCollapsed ? SYSTEM_CONFIG.ui.sidebar.expand : SYSTEM_CONFIG.ui.sidebar.collapse}>
+              {sidebarCollapsed ? <Columns2 size={16} /> : <PanelLeftClose size={16} />}
+            </button>
+          </div>
+          {!sidebarCollapsed ? (
+            <>
+              <div className="sidebar-search"><Search size={14} /><input placeholder={SYSTEM_CONFIG.ui.sidebar.searchPlaceholder} /></div>
+              <div className="sidebar-section-title"><span>{SYSTEM_CONFIG.ui.sidebar.watchlist}</span><button className="tiny-icon" title={SYSTEM_CONFIG.ui.sidebar.watchlistTitle}><Star size={13} /></button></div>
+              {watchlist.map(({ symbol, price, change, key }) => {
+                const ticker = tickers[symbol] ?? { price, change };
+                return (
+                  <button
+                    className={`watch-row ${symbol === selectedSymbol ? 'watch-row--active' : ''}`}
+                    key={symbol}
+                    onClick={() => onSetSelectedSymbol(symbol)}
+                    aria-pressed={symbol === selectedSymbol}
+                  >
+                    <span className={`watch-coin watch-coin--${key}`}>{MARKET_SYMBOLS[symbol].icon}</span>
+                    <span className="watch-symbol">{symbol}</span>
+                    <span className="watch-price">{ticker.price}<small className={ticker.change.startsWith('+') ? 'positive' : 'negative'}>{ticker.change}</small></span>
+                  </button>
+                );
+              })}
+              <div className="sidebar-section-title sidebar-section-title--spaced"><span>{SYSTEM_CONFIG.ui.sidebar.workspace}</span></div>
+              <button className="sidebar-link sidebar-link--active"><Columns2 size={15} /> {SYSTEM_CONFIG.ui.sidebar.chart}</button>
+              <button className="sidebar-link"><ListFilter size={15} /> {SYSTEM_CONFIG.ui.sidebar.eventFilters}</button>
+              <button className="sidebar-link"><Table2 size={15} /> {SYSTEM_CONFIG.ui.sidebar.dataExplorer}</button>
+              <div className="sidebar-bottom"><CircleHelp size={14} /> {SYSTEM_CONFIG.ui.sidebar.help}</div>
+            </>
+          ) : (
+            <div className="collapsed-icons">
+              <button className="icon-button" title={SYSTEM_CONFIG.ui.sidebar.watchlistTitle}><Star size={16} /></button>
+              <button className="icon-button" title={SYSTEM_CONFIG.ui.sidebar.searchTitle}><Search size={16} /></button>
+            </div>
+          )}
+        </aside>
+
+        <section className="main-area">
+          <div className="page-heading">
+            <div>
+              <div className="eyebrow">{SYSTEM_CONFIG.ui.page.marketAnalysis} / {selectedSymbol}</div>
+              <h1>{mode === 'backtest' ? SYSTEM_CONFIG.ui.page.backtestOverview : SYSTEM_CONFIG.ui.page.marketOverview} <span className="heading-dot">·</span> <span className="muted-heading">{selectedSymbol}</span></h1>
+            </div>
+          </div>
+
+          {mode === 'backtest' ? (
+            <BacktestOverview symbol={selectedSymbol} ohlc={selectedTicker.ohlc} />
+          ) : (
+            <MarketOverview
+              symbol={selectedSymbol}
+              activeTab={activeTab}
+              ohlc={selectedTicker.ohlc}
+              onSetActiveTab={onSetActiveTab}
+            />
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}

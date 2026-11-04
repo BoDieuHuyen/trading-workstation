@@ -31,10 +31,10 @@ npm run preview
 - Zustand workspace state
 
 ## Important notes
-- Market prices and event rows are mock/demo data. To update the chart from a WebSocket, set `VITE_MARKET_WS_URL`; the app adds `symbol` and `timeframe` query parameters and expects JSON text with `time` (Unix seconds), `open`, `high`, `low`, and `close` fields.
+- Event rows and chart candles are mock/demo data. The top-bar and watchlist prices subscribe to Binance's combined Spot 24-hour ticker stream for all configured symbols; no API key is required.
 - The screenshot button is a UI placeholder; Playwright screenshot automation is a later step.
 - SMC toggles are UI placeholders at this stage; the renderers and event routing are not implemented yet.
-- The chart seeds demo candles and applies validated WebSocket candles incrementally when an endpoint is configured.
+- The selected symbol's last price and 24-hour change, along with watchlist prices, are updated from Binance ticker events.
 - Google Fonts are loaded from the network; the app falls back to system fonts if unavailable.
 
 ## Next implementation steps
