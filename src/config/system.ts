@@ -1,5 +1,6 @@
 export const SYSTEM_CONFIG = {
   defaultMode: 'live',
+  marketWebSocketUrl: import.meta.env.VITE_MARKET_WS_URL,
   modes: [
     { id: 'live', label: 'LIVE' },
     { id: 'backtest', label: 'BACKTEST' },
@@ -46,6 +47,9 @@ export const SYSTEM_CONFIG = {
       bos: 'BOS',
       fvg: 'FVG',
       demoData: 'Demo data',
+      realtime: 'Realtime',
+      connecting: 'Connecting',
+      connectionError: 'Connection error',
       watermark: 'TRADING WORKSTATION',
       restoreTitle: 'Restore chart',
       expandTitle: 'Expand chart',

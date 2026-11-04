@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CandlestickSeries,
   ColorType,
   CrosshairMode,
   createChart,
+  type CandlestickData,
   type IChartApi,
+  type ISeriesApi,
   type Time,
 } from 'lightweight-charts';
-import { Activity, Camera, Maximize2, Minimize2, MoreHorizontal, Settings2 } from 'lucide-react';
 import { MARKET_SYMBOLS, type MarketSymbol } from '../../config/marketSymbols';
 import { SYSTEM_CONFIG } from '../../config/system';
 import { makeCandles } from './mockData';
+import { ChartPanelView } from './ChartPanelView';
 
 interface ChartPanelProps {
   panelId: string;
@@ -19,9 +21,28 @@ interface ChartPanelProps {
   subtitle: string;
 }
 
+function parseCandleMessage(message: unknown): CandlestickData<Time> | null {
+  if (typeof message !== 'object' || message === null || Array.isArray(message)) return null;
+  const candle = message as Record<string, unknown>;
+  const { time, open, high, low, close } = candle;
+  if (
+    typeof time !== 'number' || typeof open !== 'number' || typeof high !== 'number'
+    || typeof low !== 'number' || typeof close !== 'number'
+  ) return null;
+  if (
+    !Number.isFinite(time) || !Number.isFinite(open) || !Number.isFinite(high)
+    || !Number.isFinite(low) || !Number.isFinite(close) || time <= 0 || open <= 0
+    || high < Math.max(open, close) || low <= 0 || low > Math.min(open, close)
+  ) return null;
+
+  return { time: time as Time, open, high, low, close };
+}
+
 export function ChartPanel({ panelId, symbol, timeframe, subtitle }: ChartPanelProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const candleSeriesRef = useRef<ISeriesApi<'Candlestick', Time> | null>(null);
+  const latestCandleTimeRef = useRef<number | null>(null);
   const [showGrid, setShowGrid] = useState(true);
   const [showSwings, setShowSwings] = useState(true);
   const [showBOS, setShowBOS] = useState(true);
@@ -33,12 +54,36 @@ export function ChartPanel({ panelId, symbol, timeframe, subtitle }: ChartPanelP
     return map[timeframe] ?? 900;
   }, [timeframe]);
   const candlesData = useMemo(() => makeCandles(100, interval, symbol), [interval, symbol]);
-  const latestCandle = candlesData[candlesData.length - 1];
+  const [latestCandle, setLatestCandle] = useState(() => candlesData[candlesData.length - 1]);
+  const [realtimeStatus, setRealtimeStatus] = useState<'demo' | 'connecting' | 'connected' | 'error'>('demo');
   const priceDigits = MARKET_SYMBOLS[symbol].priceDigits;
   const formatPrice = (price: number) => price.toLocaleString('en-US', {
     minimumFractionDigits: priceDigits,
     maximumFractionDigits: priceDigits,
   });
+  const updateLastCandle = useCallback((candle: CandlestickData<Time>) => {
+    const series = candleSeriesRef.current;
+    if (!series) {
+      console.error('Cannot update the last candle before the chart series is ready.');
+      return;
+    }
+
+    const candleTime = Number(candle.time);
+    if (latestCandleTimeRef.current !== null && candleTime < latestCandleTimeRef.current) {
+      console.error('WebSocket sent an out-of-order candle.', candle);
+      return;
+    }
+
+    series.update(candle);
+    latestCandleTimeRef.current = candleTime;
+    setLatestCandle(candle);
+  }, []);
+  const prices = {
+    open: formatPrice(latestCandle.open),
+    high: formatPrice(latestCandle.high),
+    low: formatPrice(latestCandle.low),
+    close: formatPrice(latestCandle.close),
+  };
 
   useEffect(() => {
     if (!expanded) return;
@@ -80,6 +125,9 @@ export function ChartPanel({ panelId, symbol, timeframe, subtitle }: ChartPanelP
       wickDownColor: '#ef626c',
     });
     candles.setData(candlesData);
+    candleSeriesRef.current = candles;
+    latestCandleTimeRef.current = Number(candlesData[candlesData.length - 1].time);
+    setLatestCandle(candlesData[candlesData.length - 1]);
     chart.timeScale().fitContent();
 
     const resizeObserver = new ResizeObserver(() => chart.timeScale().fitContent());
@@ -89,56 +137,103 @@ export function ChartPanel({ panelId, symbol, timeframe, subtitle }: ChartPanelP
       resizeObserver.disconnect();
       chart.remove();
       chartRef.current = null;
+      candleSeriesRef.current = null;
     };
-  }, [candlesData, showGrid]);
+  }, [candlesData]);
+
+  useEffect(() => {
+    chartRef.current?.applyOptions({
+      grid: {
+        vertLines: { color: showGrid ? '#1b2a3d' : '#101a2a' },
+        horzLines: { color: showGrid ? '#1b2a3d' : '#101a2a' },
+      },
+    });
+  }, [showGrid]);
+
+  useEffect(() => {
+    if (!SYSTEM_CONFIG.marketWebSocketUrl) return;
+
+    let socket: WebSocket;
+    try {
+      const url = new URL(SYSTEM_CONFIG.marketWebSocketUrl);
+      url.searchParams.set('symbol', symbol);
+      url.searchParams.set('timeframe', timeframe);
+      socket = new WebSocket(url);
+    } catch (error) {
+      console.error('Unable to connect to the configured market WebSocket URL.', error);
+      setRealtimeStatus('error');
+      return;
+    }
+
+    let disposed = false;
+    setRealtimeStatus('connecting');
+    socket.addEventListener('open', () => {
+      if (!disposed) setRealtimeStatus('connected');
+    });
+    socket.addEventListener('close', () => {
+      if (!disposed) setRealtimeStatus('demo');
+    });
+    socket.addEventListener('error', (event) => {
+      if (!disposed) setRealtimeStatus('error');
+      console.error('Market WebSocket connection failed.', event);
+    });
+    socket.addEventListener('message', (event: MessageEvent<unknown>) => {
+      if (typeof event.data !== 'string') {
+        console.error('Market WebSocket messages must be JSON text.');
+        return;
+      }
+
+      let payload: unknown;
+      try {
+        payload = JSON.parse(event.data);
+      } catch (error) {
+        console.error('Market WebSocket sent invalid JSON.', error);
+        return;
+      }
+
+      const candle = parseCandleMessage(payload);
+      if (!candle) {
+        console.error('Market WebSocket sent an invalid candle payload.', payload);
+        return;
+      }
+
+      updateLastCandle(candle);
+    });
+
+    return () => {
+      disposed = true;
+      socket.close();
+      setRealtimeStatus('demo');
+    };
+  }, [symbol, timeframe, updateLastCandle]);
+
+  const statusLabel = realtimeStatus === 'connected'
+    ? SYSTEM_CONFIG.ui.chart.realtime
+    : realtimeStatus === 'connecting'
+      ? SYSTEM_CONFIG.ui.chart.connecting
+      : realtimeStatus === 'error'
+        ? SYSTEM_CONFIG.ui.chart.connectionError
+        : SYSTEM_CONFIG.ui.chart.demoData;
 
   return (
-    <section className={`chart-panel${expanded ? ' chart-panel--expanded' : ''}`}>
-      <header className="chart-panel__header">
-        <div className="chart-heading">
-          <span className="symbol-mark">{MARKET_SYMBOLS[symbol].icon}</span>
-          <div>
-            <div className="chart-title">{symbol} <span className="market-dot" /></div>
-            <div className="chart-subtitle">{subtitle}</div>
-          </div>
-        </div>
-        <div className="chart-actions">
-          <span className="timeframe-chip">{timeframe}</span>
-          <button className="icon-button" title={SYSTEM_CONFIG.ui.chart.settingsTitle}><Settings2 size={15} /></button>
-          <button className="icon-button" title={SYSTEM_CONFIG.ui.chart.screenshotTitle}><Camera size={15} /></button>
-          <button className="icon-button" title={SYSTEM_CONFIG.ui.chart.moreTitle}><MoreHorizontal size={16} /></button>
-        </div>
-      </header>
-
-      <div className="chart-toolbar">
-        <label className="mini-toggle"><input type="checkbox" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} /> {SYSTEM_CONFIG.ui.chart.grid}</label>
-        <label className="mini-toggle"><input type="checkbox" checked={showSwings} onChange={(e) => setShowSwings(e.target.checked)} /> {SYSTEM_CONFIG.ui.chart.swings}</label>
-        <label className="mini-toggle"><input type="checkbox" checked={showBOS} onChange={(e) => setShowBOS(e.target.checked)} /> {SYSTEM_CONFIG.ui.chart.bos}</label>
-        <label className="mini-toggle"><input type="checkbox" checked={showFVG} onChange={(e) => setShowFVG(e.target.checked)} /> {SYSTEM_CONFIG.ui.chart.fvg}</label>
-        <span className="toolbar-spacer" />
-        <span className="chart-status"><Activity size={12} /> {SYSTEM_CONFIG.ui.chart.demoData}</span>
-        <span className="sr-only">{panelId}-{showSwings}-{showBOS}-{showFVG}</span>
-      </div>
-
-      <div className="chart-canvas-wrap">
-        <div className="chart-canvas" ref={hostRef} />
-        <div className="chart-watermark">{SYSTEM_CONFIG.ui.chart.watermark}</div>
-      </div>
-      <footer className="chart-panel__footer">
-        <span>{SYSTEM_CONFIG.ui.chart.open} <b>{formatPrice(latestCandle.open)}</b></span>
-        <span>{SYSTEM_CONFIG.ui.chart.high} <b className="positive">{formatPrice(latestCandle.high)}</b></span>
-        <span>{SYSTEM_CONFIG.ui.chart.low} <b className="negative">{formatPrice(latestCandle.low)}</b></span>
-        <span>{SYSTEM_CONFIG.ui.chart.close} <b>{formatPrice(latestCandle.close)}</b></span>
-        <button
-          className="expand-chart"
-          title={expanded ? SYSTEM_CONFIG.ui.chart.restoreTitle : SYSTEM_CONFIG.ui.chart.expandTitle}
-          aria-label={expanded ? SYSTEM_CONFIG.ui.chart.restoreTitle : SYSTEM_CONFIG.ui.chart.expandTitle}
-          aria-expanded={expanded}
-          onClick={() => setExpanded((isExpanded) => !isExpanded)}
-        >
-          {expanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-        </button>
-      </footer>
-    </section>
+    <ChartPanelView
+      panelId={panelId}
+      symbol={symbol}
+      timeframe={timeframe}
+      subtitle={subtitle}
+      chartHostRef={hostRef}
+      showGrid={showGrid}
+      onShowGridChange={setShowGrid}
+      showSwings={showSwings}
+      onShowSwingsChange={setShowSwings}
+      showBOS={showBOS}
+      onShowBOSChange={setShowBOS}
+      showFVG={showFVG}
+      onShowFVGChange={setShowFVG}
+      expanded={expanded}
+      onToggleExpanded={() => setExpanded((isExpanded) => !isExpanded)}
+      statusLabel={statusLabel}
+      prices={prices}
+    />
   );
 }

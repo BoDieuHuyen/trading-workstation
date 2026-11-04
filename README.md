@@ -31,10 +31,10 @@ npm run preview
 - Zustand workspace state
 
 ## Important notes
-- All market prices and event rows are mock/demo data. No exchange connection or backend is configured.
+- Market prices and event rows are mock/demo data. To update the chart from a WebSocket, set `VITE_MARKET_WS_URL`; the app adds `symbol` and `timeframe` query parameters and expects JSON text with `time` (Unix seconds), `open`, `high`, `low`, and `close` fields.
 - The screenshot button is a UI placeholder; Playwright screenshot automation is a later step.
 - SMC toggles are UI placeholders at this stage; the renderers and event routing are not implemented yet.
-- `ChartPanel` currently regenerates demo candles when its timeframe/grid setting changes. Replace this with stable data from your API/store when integrating real data.
+- The chart seeds demo candles and applies validated WebSocket candles incrementally when an endpoint is configured.
 - Google Fonts are loaded from the network; the app falls back to system fonts if unavailable.
 
 ## Next implementation steps
