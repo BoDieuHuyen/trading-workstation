@@ -1,14 +1,14 @@
 import { useEffect } from 'react';
 import { useWorkspaceStore } from '../../stores/workspaceStore';
+import { useBinanceKlines } from '../market-overview/useBinanceKlines';
 import { TradingWorkspaceView } from './TradingWorkspaceView';
-import { useBinanceTickers } from './useBinanceTickers';
 
 export function TradingWorkspace() {
   const {
     sidebarCollapsed, activeTab, mode, selectedSymbol, toggleSidebar, setSidebarCollapsed,
     setActiveTab, setMode, setSelectedSymbol,
   } = useWorkspaceStore();
-  const tickers = useBinanceTickers();
+  const klines = useBinanceKlines();
 
   useEffect(() => {
     const breakpoint = window.matchMedia('(max-width: 1100px)');
@@ -24,7 +24,7 @@ export function TradingWorkspace() {
       activeTab={activeTab}
       mode={mode}
       selectedSymbol={selectedSymbol}
-      tickers={tickers}
+      klines={klines}
       onToggleSidebar={toggleSidebar}
       onSetActiveTab={setActiveTab}
       onSetMode={setMode}

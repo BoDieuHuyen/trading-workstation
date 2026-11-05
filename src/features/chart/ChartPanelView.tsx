@@ -1,4 +1,5 @@
-import { Activity, Camera, Maximize2, Minimize2, MoreHorizontal, Settings2 } from 'lucide-react';
+import { Activity, Camera, Check, Copy, Maximize2, Minimize2, MoreHorizontal, Settings2, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { MARKET_SYMBOLS } from '../../config/marketSymbols';
 import { SYSTEM_CONFIG } from '../../config/system';
 import type { ChartPanelViewProps } from './ChartPanelView.types';
@@ -20,8 +21,37 @@ export function ChartPanelView({
   expanded,
   onToggleExpanded,
   statusLabel,
-  prices,
+  currentCandle,
+  selectedCandle,
+  onCloseCandleTooltip,
+  toolbarContent,
 }: ChartPanelViewProps) {
+  const [copiedTimestamp, setCopiedTimestamp] = useState<number | null>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
+
+  useEffect(() => {
+    if (copiedTimestamp === null) return;
+    const timeoutId = window.setTimeout(() => setCopiedTimestamp(null), 1500);
+    return () => window.clearTimeout(timeoutId);
+  }, [copiedTimestamp]);
+
+  const formatValue = (value: number | null, digits = 2) => value === null
+    ? '--'
+    : value.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  const timestampCopied = selectedCandle !== null
+    && copiedTimestamp === selectedCandle.data.timestampMilliseconds;
+
+  const copyTimestamp = async (timestamp: number) => {
+    setCopyFailed(false);
+    try {
+      await navigator.clipboard.writeText(String(timestamp));
+      setCopiedTimestamp(timestamp);
+    } catch (error) {
+      console.error('Unable to copy candle timestamp.', error);
+      setCopyFailed(true);
+    }
+  };
+
   return (
     <section className={`chart-panel${expanded ? ' chart-panel--expanded' : ''}`}>
       <header className="chart-panel__header">
@@ -41,24 +71,76 @@ export function ChartPanelView({
       </header>
 
       <div className="chart-toolbar">
-        <label className="mini-toggle"><input type="checkbox" checked={showGrid} onChange={(event) => onShowGridChange(event.target.checked)} /> {SYSTEM_CONFIG.ui.chart.grid}</label>
-        <label className="mini-toggle"><input type="checkbox" checked={showSwings} onChange={(event) => onShowSwingsChange(event.target.checked)} /> {SYSTEM_CONFIG.ui.chart.swings}</label>
-        <label className="mini-toggle"><input type="checkbox" checked={showBOS} onChange={(event) => onShowBOSChange(event.target.checked)} /> {SYSTEM_CONFIG.ui.chart.bos}</label>
-        <label className="mini-toggle"><input type="checkbox" checked={showFVG} onChange={(event) => onShowFVGChange(event.target.checked)} /> {SYSTEM_CONFIG.ui.chart.fvg}</label>
-        <span className="toolbar-spacer" />
-        <span className="chart-status"><Activity size={12} /> {statusLabel}</span>
-        <span className="sr-only">{panelId}-{showSwings}-{showBOS}-{showFVG}</span>
+        {toolbarContent ?? (
+          <>
+            <label className="mini-toggle"><input type="checkbox" checked={showGrid} onChange={(event) => onShowGridChange(event.target.checked)} /> {SYSTEM_CONFIG.ui.chart.grid}</label>
+            <label className="mini-toggle"><input type="checkbox" checked={showSwings} onChange={(event) => onShowSwingsChange(event.target.checked)} /> {SYSTEM_CONFIG.ui.chart.swings}</label>
+            <label className="mini-toggle"><input type="checkbox" checked={showBOS} onChange={(event) => onShowBOSChange(event.target.checked)} /> {SYSTEM_CONFIG.ui.chart.bos}</label>
+            <label className="mini-toggle"><input type="checkbox" checked={showFVG} onChange={(event) => onShowFVGChange(event.target.checked)} /> {SYSTEM_CONFIG.ui.chart.fvg}</label>
+            <span className="toolbar-spacer" />
+            <span className="chart-status"><Activity size={12} /> {statusLabel}</span>
+            <span className="sr-only">{panelId}-{showSwings}-{showBOS}-{showFVG}</span>
+          </>
+        )}
       </div>
 
       <div className="chart-canvas-wrap">
         <div className="chart-canvas" ref={chartHostRef} />
         <div className="chart-watermark">{SYSTEM_CONFIG.ui.chart.watermark}</div>
+        {selectedCandle && (
+          <aside
+            className="candle-tooltip"
+            style={{ left: selectedCandle.left, top: selectedCandle.top }}
+            aria-label="Selected candle details"
+          >
+            <header className="candle-tooltip__header">
+              <strong>{symbol.replace(/(USDT)$/, '-$1')} | {timeframe.toUpperCase()}</strong>
+              <button type="button" className="candle-tooltip__close" aria-label="Close candle details" onClick={onCloseCandleTooltip}>
+                <X size={14} />
+              </button>
+            </header>
+            <div className="candle-tooltip__time">
+              <button
+                type="button"
+                className={`candle-tooltip__time-copy${timestampCopied ? ' candle-tooltip__time-copy--copied' : ''}`}
+                title={copyFailed ? 'Copy failed' : timestampCopied ? 'Timestamp copied' : 'Copy timestamp'}
+                aria-label={`${timestampCopied ? 'Timestamp copied' : 'Copy timestamp'} ${selectedCandle.data.timestampMilliseconds}`}
+                onClick={() => void copyTimestamp(selectedCandle.data.timestampMilliseconds)}
+              >
+                <span>Time: <strong>{selectedCandle.data.timestampMilliseconds}</strong></span>
+                {timestampCopied
+                  ? <Check className="candle-tooltip__copy-icon" size={11} />
+                  : <Copy className="candle-tooltip__copy-icon" size={11} />}
+              </button>
+              <span><strong>{selectedCandle.data.timestamp}</strong></span>
+              {copyFailed && <span className="candle-tooltip__copy-error" role="status">Copy failed</span>}
+            </div>
+            <div className="candle-tooltip__grid">
+              <span>Open: <strong>{formatValue(selectedCandle.data.open)}</strong></span>
+              <span>High: <strong>{formatValue(selectedCandle.data.high)}</strong></span>
+              <span>Low: <strong>{formatValue(selectedCandle.data.low)}</strong></span>
+              <span>Close: <strong>{formatValue(selectedCandle.data.close)}</strong></span>
+              <span>Upper wick: <strong>{formatValue(selectedCandle.data.upperWick)}</strong></span>
+              <span>Lower wick: <strong>{formatValue(selectedCandle.data.lowerWick)}</strong></span>
+              <span>Body: <strong>{formatValue(selectedCandle.data.body)}</strong></span>
+              <span>Body ratio: <strong>{formatValue(selectedCandle.data.bodyRatio)}</strong></span>
+              <span>Range: <strong>{formatValue(selectedCandle.data.range)}</strong></span>
+              <span>Range atr: <strong>{formatValue(selectedCandle.data.rangeAtr)}</strong></span>
+              <span>Volume: <strong>{formatValue(selectedCandle.data.volume)}</strong></span>
+            </div>
+            <footer className="candle-tooltip__indicators">
+              <span>ATR: <strong>{formatValue(selectedCandle.data.atr)}</strong></span>
+              <span>RSI: <strong>{formatValue(selectedCandle.data.rsi)}</strong></span>
+              <span>Vol ratio: <strong>{formatValue(selectedCandle.data.volumeRatio)}</strong></span>
+            </footer>
+          </aside>
+        )}
       </div>
       <footer className="chart-panel__footer">
-        <span>{SYSTEM_CONFIG.ui.chart.open} <b>{prices.open}</b></span>
-        <span>{SYSTEM_CONFIG.ui.chart.high} <b className="positive">{prices.high}</b></span>
-        <span>{SYSTEM_CONFIG.ui.chart.low} <b className="negative">{prices.low}</b></span>
-        <span>{SYSTEM_CONFIG.ui.chart.close} <b>{prices.close}</b></span>
+        <span>{SYSTEM_CONFIG.ui.chart.open} <b>{currentCandle?.open ?? '--'}</b></span>
+        <span>{SYSTEM_CONFIG.ui.chart.high} <b className="positive">{currentCandle?.high ?? '--'}</b></span>
+        <span>{SYSTEM_CONFIG.ui.chart.low} <b className="negative">{currentCandle?.low ?? '--'}</b></span>
+        <span>{SYSTEM_CONFIG.ui.chart.close} <b>{currentCandle?.close ?? '--'}</b></span>
         <button
           className="expand-chart"
           title={expanded ? SYSTEM_CONFIG.ui.chart.restoreTitle : SYSTEM_CONFIG.ui.chart.expandTitle}

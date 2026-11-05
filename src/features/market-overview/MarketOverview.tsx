@@ -2,17 +2,14 @@ import { Activity, Bell, ListFilter, Terminal, Wallet } from 'lucide-react';
 import { MARKET_SYMBOLS, type MarketSymbol } from '../../config/marketSymbols';
 import { SYSTEM_CONFIG } from '../../config/system';
 import type { BottomTab } from '../../stores/workspaceStore';
+import { CANDLE_SERIES_OPTIONS, getChartOptions } from '../chart/chartConfig';
+import type { KlineDisplay } from './useBinanceKlines';
 import { ChartPanel } from '../chart/ChartPanel';
 
 interface MarketOverviewProps {
   symbol: MarketSymbol;
   activeTab: BottomTab;
-  ohlc?: {
-    open: string;
-    high: string;
-    low: string;
-    close: string;
-  };
+  kline: KlineDisplay | undefined;
   onSetActiveTab: (tab: BottomTab) => void;
 }
 
@@ -34,10 +31,11 @@ const tabIcons: Record<BottomTab, typeof Activity> = {
 export function MarketOverview({
   symbol,
   activeTab,
-  ohlc,
+  kline,
   onSetActiveTab,
 }: MarketOverviewProps) {
   const selectedMarket = MARKET_SYMBOLS[symbol];
+  const timeframe = '5m';
 
   return (
     <div className="market-workspace">
@@ -45,9 +43,13 @@ export function MarketOverview({
         <ChartPanel
           panelId="market"
           symbol={symbol}
-          timeframe="15m"
+          timeframe={timeframe}
           subtitle={`${selectedMarket.baseAsset} / ${selectedMarket.quoteAsset} · ${SYSTEM_CONFIG.ui.chart.spot}`}
-          ohlc={ohlc}
+          candlesData={kline?.candlesData ?? []}
+          currentCandle={kline?.currentCandle ?? null}
+          chartOptions={getChartOptions}
+          seriesOptions={CANDLE_SERIES_OPTIONS}
+          statusLabel={kline?.statusLabel ?? SYSTEM_CONFIG.ui.chart.loadingData}
         />
       </section>
 

@@ -2,8 +2,10 @@ import {
   Activity, ChevronDown, CircleHelp, Clock3, Columns2, Download, LayoutDashboard,
   ListFilter, PanelLeftClose, Search, Settings, Star, Table2,
 } from 'lucide-react';
+import { useEffect } from 'react';
 import { MARKET_SYMBOLS } from '../../config/marketSymbols';
 import { SYSTEM_CONFIG } from '../../config/system';
+import { useWorkspaceStore } from '../../stores/workspaceStore';
 import type { TradingWorkspaceViewProps } from './TradingWorkspaceView.types';
 import { MarketOverview } from '../market-overview/MarketOverview';
 import { BacktestOverview } from '../backtest-overview/BacktestOverview';
@@ -15,17 +17,25 @@ export function TradingWorkspaceView({
   activeTab,
   mode,
   selectedSymbol,
-  tickers,
+  klines,
   onToggleSidebar,
   onSetActiveTab,
   onSetMode,
   onSetSelectedSymbol,
 }: TradingWorkspaceViewProps) {
   const selectedMarket = MARKET_SYMBOLS[selectedSymbol];
-  const selectedTicker = tickers[selectedSymbol] ?? {
-    price: selectedMarket.price,
-    change: selectedMarket.change,
-  };
+  const selectedKline = klines[selectedSymbol];
+  const selectedPrice = selectedKline?.price ?? '--';
+  const selectedChange = selectedKline?.change ?? '--';
+  const replayPlaying = useWorkspaceStore((state) => state.replayPlaying);
+  const replaySpeed = useWorkspaceStore((state) => state.replaySpeed);
+  const advanceReplay = useWorkspaceStore((state) => state.advanceReplay);
+
+  useEffect(() => {
+    if (mode !== 'backtest' || !replayPlaying) return;
+    const intervalId = window.setInterval(advanceReplay, 1000 / replaySpeed);
+    return () => window.clearInterval(intervalId);
+  }, [advanceReplay, mode, replayPlaying, replaySpeed]);
 
   return (
     <main className="workstation">
@@ -37,7 +47,7 @@ export function TradingWorkspaceView({
         </div>
         <div className="topbar-divider" />
         <button className="symbol-select"><span className="coin-icon">{selectedMarket.icon}</span> {selectedSymbol} <ChevronDown className="muted" size={14} /></button>
-        <span className="price-label">{selectedTicker.price} <span className={selectedTicker.change.startsWith('+') ? 'positive' : 'negative'}>{selectedTicker.change}</span></span>
+        <span className="price-label">{selectedPrice} <span className={selectedChange.startsWith('+') ? 'positive' : 'negative'}>{selectedChange}</span></span>
         <div className="topbar-spacer" />
         <div className="mode-switch" role="group" aria-label={SYSTEM_CONFIG.ui.topbar.modeAriaLabel}>
           {SYSTEM_CONFIG.modes.map(({ id, label }) => (
@@ -71,8 +81,10 @@ export function TradingWorkspaceView({
             <>
               <div className="sidebar-search"><Search size={14} /><input placeholder={SYSTEM_CONFIG.ui.sidebar.searchPlaceholder} /></div>
               <div className="sidebar-section-title"><span>{SYSTEM_CONFIG.ui.sidebar.watchlist}</span><button className="tiny-icon" title={SYSTEM_CONFIG.ui.sidebar.watchlistTitle}><Star size={13} /></button></div>
-              {watchlist.map(({ symbol, price, change, key }) => {
-                const ticker = tickers[symbol] ?? { price, change };
+              {watchlist.map(({ symbol, key }) => {
+                const kline = klines[symbol];
+                const price = kline?.price ?? '--';
+                const change = kline?.change ?? '--';
                 return (
                   <button
                     className={`watch-row ${symbol === selectedSymbol ? 'watch-row--active' : ''}`}
@@ -82,7 +94,7 @@ export function TradingWorkspaceView({
                   >
                     <span className={`watch-coin watch-coin--${key}`}>{MARKET_SYMBOLS[symbol].icon}</span>
                     <span className="watch-symbol">{symbol}</span>
-                    <span className="watch-price">{ticker.price}<small className={ticker.change.startsWith('+') ? 'positive' : 'negative'}>{ticker.change}</small></span>
+                    <span className="watch-price">{price}<small className={change.startsWith('+') ? 'positive' : 'negative'}>{change}</small></span>
                   </button>
                 );
               })}
@@ -109,12 +121,12 @@ export function TradingWorkspaceView({
           </div>
 
           {mode === 'backtest' ? (
-            <BacktestOverview symbol={selectedSymbol} ohlc={selectedTicker.ohlc} />
+            <BacktestOverview symbol={selectedSymbol} />
           ) : (
             <MarketOverview
               symbol={selectedSymbol}
               activeTab={activeTab}
-              ohlc={selectedTicker.ohlc}
+              kline={selectedKline}
               onSetActiveTab={onSetActiveTab}
             />
           )}

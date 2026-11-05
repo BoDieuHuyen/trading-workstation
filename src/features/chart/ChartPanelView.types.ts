@@ -1,5 +1,7 @@
 import type { RefObject } from 'react';
+import type { ReactNode } from 'react';
 import type { MarketSymbol } from '../../config/marketSymbols';
+import type { Candle, CandleTooltipData } from './candle.types';
 
 export interface ChartPanelViewProps {
   panelId: string;
@@ -18,10 +20,12 @@ export interface ChartPanelViewProps {
   expanded: boolean;
   onToggleExpanded: () => void;
   statusLabel: string;
-  prices: {
-    open: string;
-    high: string;
-    low: string;
-    close: string;
-  };
+  currentCandle: Candle | null;
+  selectedCandle: {
+    data: CandleTooltipData;
+    left: number;
+    top: number;
+  } | null;
+  onCloseCandleTooltip: () => void;
+  toolbarContent?: ReactNode;
 }

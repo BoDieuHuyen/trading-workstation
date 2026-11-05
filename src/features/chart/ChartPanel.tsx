@@ -1,14 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
-  CandlestickSeries,
-  ColorType,
-  CrosshairMode,
-  createChart,
+  createSeriesMarkers,
+  type CandlestickSeriesPartialOptions,
+  type ChartOptions,
+  type DeepPartial,
   type IChartApi,
+  type ISeriesMarkersPluginApi,
+  type ISeriesApi,
+  type SeriesMarker,
+  type Time,
 } from 'lightweight-charts';
-import { MARKET_SYMBOLS, type MarketSymbol } from '../../config/marketSymbols';
-import { SYSTEM_CONFIG } from '../../config/system';
-import { makeCandles } from './mockData';
+import type { MarketSymbol } from '../../config/marketSymbols';
+import { setChartData } from './chartData';
+import type { Candle, CandleData, CandleTooltipData } from './candle.types';
+import { getCandleTooltipData } from './candleTooltip';
+import { initializeChart } from './chartSetup';
 import { ChartPanelView } from './ChartPanelView';
 
 interface ChartPanelProps {
@@ -16,40 +23,47 @@ interface ChartPanelProps {
   symbol: MarketSymbol;
   timeframe: string;
   subtitle: string;
-  ohlc?: {
-    open: string;
-    high: string;
-    low: string;
-    close: string;
-  };
+  candlesData: CandleData[];
+  currentCandle: Candle | null;
+  chartOptions: (showGrid: boolean) => DeepPartial<ChartOptions>;
+  seriesOptions: CandlestickSeriesPartialOptions;
+  statusLabel: string;
+  toolbarContent?: ReactNode;
+  markers?: SeriesMarker<Time>[];
 }
 
-export function ChartPanel({ panelId, symbol, timeframe, subtitle, ohlc }: ChartPanelProps) {
+export function ChartPanel({
+  panelId,
+  symbol,
+  timeframe,
+  subtitle,
+  candlesData,
+  currentCandle,
+  chartOptions,
+  seriesOptions,
+  statusLabel,
+  toolbarContent,
+  markers,
+}: ChartPanelProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const candlesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const candlesDataRef = useRef(candlesData);
+  const hasInitialDataRef = useRef(false);
+  const previousDataLengthRef = useRef(0);
   const [showGrid, setShowGrid] = useState(true);
   const [showSwings, setShowSwings] = useState(true);
   const [showBOS, setShowBOS] = useState(true);
   const [showFVG, setShowFVG] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [selectedCandle, setSelectedCandle] = useState<{
+    data: CandleTooltipData;
+    left: number;
+    top: number;
+  } | null>(null);
 
-  const interval = useMemo(() => {
-    const map: Record<string, number> = { '5m': 300, '15m': 900, '1h': 3600, '4h': 14400 };
-    return map[timeframe] ?? 900;
-  }, [timeframe]);
-  const candlesData = useMemo(() => makeCandles(100, interval, symbol), [interval, symbol]);
-  const latestCandle = candlesData[candlesData.length - 1];
-  const priceDigits = MARKET_SYMBOLS[symbol].priceDigits;
-  const formatPrice = (price: number) => price.toLocaleString('en-US', {
-    minimumFractionDigits: priceDigits,
-    maximumFractionDigits: priceDigits,
-  });
-  const prices = ohlc ?? {
-    open: formatPrice(latestCandle.open),
-    high: formatPrice(latestCandle.high),
-    low: formatPrice(latestCandle.low),
-    close: formatPrice(latestCandle.close),
-  };
+  candlesDataRef.current = candlesData;
 
   useEffect(() => {
     if (!expanded) return;
@@ -62,55 +76,79 @@ export function ChartPanel({ panelId, symbol, timeframe, subtitle, ohlc }: Chart
 
   useEffect(() => {
     if (!hostRef.current) return;
-    const chart = createChart(hostRef.current, {
-      autoSize: true,
-      layout: {
-        background: { type: ColorType.Solid, color: '#101a2a' },
-        textColor: '#8fa1b8',
-        fontFamily: 'Inter, ui-sans-serif, system-ui',
-        fontSize: 11,
-      },
-      grid: {
-        vertLines: { color: showGrid ? '#1b2a3d' : '#101a2a' },
-        horzLines: { color: showGrid ? '#1b2a3d' : '#101a2a' },
-      },
-      crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: '#26364b' },
-      timeScale: { borderColor: '#26364b', timeVisible: true, secondsVisible: false },
-      handleScroll: true,
-      handleScale: true,
-    });
+    const { chart, candles } = initializeChart(
+      hostRef.current,
+      chartOptions(showGrid),
+      seriesOptions,
+    );
     chartRef.current = chart;
+    candlesRef.current = candles;
+    markersRef.current = createSeriesMarkers(candles, markers ?? []);
+    const onChartClick = (param: { time?: Time; point?: { x: number; y: number } }) => {
+      if (param.time === undefined || !param.point || !hostRef.current) {
+        setSelectedCandle(null);
+        return;
+      }
 
-    const candles = chart.addSeries(CandlestickSeries, {
-      upColor: '#20b887',
-      downColor: '#ef626c',
-      borderUpColor: '#20b887',
-      borderDownColor: '#ef626c',
-      wickUpColor: '#20b887',
-      wickDownColor: '#ef626c',
-    });
-    candles.setData(candlesData);
-    chart.timeScale().fitContent();
+      const data = candlesDataRef.current;
+      const index = data.findIndex((candle) => candle.time === param.time);
+      if (index < 0) {
+        setSelectedCandle(null);
+        return;
+      }
+
+      const tooltipWidth = Math.min(282, hostRef.current.clientWidth - 16);
+      const tooltipHeight = 180;
+      setSelectedCandle({
+        data: getCandleTooltipData(data, index),
+        left: Math.max(8, Math.min(param.point.x + 12, hostRef.current.clientWidth - tooltipWidth - 8)),
+        top: Math.max(8, Math.min(param.point.y + 12, hostRef.current.clientHeight - tooltipHeight - 8)),
+      });
+    };
+    chart.subscribeClick(onChartClick);
 
     const resizeObserver = new ResizeObserver(() => chart.timeScale().fitContent());
     resizeObserver.observe(hostRef.current);
 
     return () => {
       resizeObserver.disconnect();
+      markersRef.current?.detach();
+      markersRef.current = null;
+      chart.unsubscribeClick(onChartClick);
       chart.remove();
       chartRef.current = null;
+      candlesRef.current = null;
     };
+  }, []);
+
+  useEffect(() => {
+    markersRef.current?.setMarkers(markers ?? []);
+  }, [markers]);
+
+  useEffect(() => {
+    candlesRef.current?.setData([]);
+    hasInitialDataRef.current = false;
+    previousDataLengthRef.current = 0;
+    setSelectedCandle(null);
+  }, [symbol, timeframe]);
+
+  useEffect(() => {
+    if (!chartRef.current || !candlesRef.current || candlesData.length === 0) return;
+    if (!hasInitialDataRef.current) {
+      setChartData(chartRef.current, candlesRef.current, candlesData);
+      hasInitialDataRef.current = true;
+    } else if (candlesData.length < previousDataLengthRef.current) {
+      candlesRef.current.setData(candlesData);
+    } else {
+      candlesRef.current.update(candlesData[candlesData.length - 1]);
+    }
+
+    previousDataLengthRef.current = candlesData.length;
   }, [candlesData]);
 
   useEffect(() => {
-    chartRef.current?.applyOptions({
-      grid: {
-        vertLines: { color: showGrid ? '#1b2a3d' : '#101a2a' },
-        horzLines: { color: showGrid ? '#1b2a3d' : '#101a2a' },
-      },
-    });
-  }, [showGrid]);
+    chartRef.current?.applyOptions(chartOptions(showGrid));
+  }, [chartOptions, showGrid]);
 
   return (
     <ChartPanelView
@@ -129,8 +167,11 @@ export function ChartPanel({ panelId, symbol, timeframe, subtitle, ohlc }: Chart
       onShowFVGChange={setShowFVG}
       expanded={expanded}
       onToggleExpanded={() => setExpanded((isExpanded) => !isExpanded)}
-      statusLabel={SYSTEM_CONFIG.ui.chart.demoData}
-      prices={prices}
+      statusLabel={statusLabel}
+      currentCandle={currentCandle}
+      selectedCandle={selectedCandle}
+      onCloseCandleTooltip={() => setSelectedCandle(null)}
+      toolbarContent={toolbarContent}
     />
   );
 }
