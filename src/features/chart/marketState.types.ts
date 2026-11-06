@@ -15,7 +15,7 @@ export interface MarketStateOverlay {
   };
   pois: {
     startTime: Time;
-    endTime: Time;
+    endTime: Time | null;
     high: number;
     low: number;
     score: number;

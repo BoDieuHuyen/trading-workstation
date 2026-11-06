@@ -3,9 +3,11 @@ import {
   ChevronRight,
   Pause,
   Play,
+  Search,
   SkipBack,
   SkipForward,
 } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 import { SYSTEM_CONFIG } from '../../config/system';
 import { useWorkspaceStore } from '../../stores/workspaceStore';
 
@@ -14,12 +16,16 @@ const REPLAY_SPEEDS = [1, 2, 5, 10] as const;
 interface BacktestReplayControlsProps {
   marketStructureNumber: number | null;
   marketStructureCount: number;
+  marketStructureNumbers: number[];
 }
 
 export function BacktestReplayControls({
   marketStructureNumber,
   marketStructureCount,
+  marketStructureNumbers,
 }: BacktestReplayControlsProps) {
+  const [searchValue, setSearchValue] = useState('');
+  const [searchError, setSearchError] = useState('');
   const timeframe = useWorkspaceStore((state) => state.backtestTimeframe);
   const replayIndex = useWorkspaceStore((state) => state.replayIndex);
   const replayLastIndex = useWorkspaceStore((state) => state.replayLastIndex);
@@ -39,6 +45,24 @@ export function BacktestReplayControls({
   const progressPercent = marketStructureNumber === null
     ? 0
     : (progressValue / progressMaximum) * 100;
+
+  const handleSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const number = Number(searchValue);
+    if (!searchValue.trim() || !Number.isInteger(number)) {
+      setSearchError(SYSTEM_CONFIG.ui.backtestReplay.invalidNumber);
+      return;
+    }
+
+    const index = marketStructureNumbers.indexOf(number);
+    if (index < 0) {
+      setSearchError(SYSTEM_CONFIG.ui.backtestReplay.numberNotFound);
+      return;
+    }
+
+    setReplayIndex(index);
+    setSearchError('');
+  };
 
   return (
     <section className="backtest-replay" aria-label={SYSTEM_CONFIG.ui.backtestReplay.ariaLabel}>
@@ -63,6 +87,27 @@ export function BacktestReplayControls({
           </button>
         </div>
       </header>
+
+      <form className="backtest-replay__search" onSubmit={handleSearch}>
+        <input
+          type="number"
+          step="1"
+          value={searchValue}
+          aria-label={SYSTEM_CONFIG.ui.backtestReplay.searchAriaLabel}
+          aria-invalid={Boolean(searchError)}
+          aria-describedby={searchError ? 'backtest-replay-search-error' : undefined}
+          placeholder={SYSTEM_CONFIG.ui.backtestReplay.searchPlaceholder}
+          disabled={!hasReplayData}
+          onChange={(event) => {
+            setSearchValue(event.target.value);
+            setSearchError('');
+          }}
+        />
+        <button type="submit" aria-label={SYSTEM_CONFIG.ui.backtestReplay.searchAriaLabel} title={SYSTEM_CONFIG.ui.backtestReplay.searchAriaLabel} disabled={!hasReplayData || !searchValue.trim()}>
+          <Search size={13} />
+        </button>
+      </form>
+      {searchError && <span className="backtest-replay__search-error" id="backtest-replay-search-error" role="alert">{searchError}</span>}
 
       <div className="backtest-replay__progress">
         <div className="backtest-replay__progress-heading">

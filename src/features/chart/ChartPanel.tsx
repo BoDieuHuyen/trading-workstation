@@ -38,13 +38,23 @@ interface ChartPanelProps {
   marketState?: MarketStateOverlay | null;
 }
 
-function getMarketStateVisibleRange(marketState: MarketStateOverlay) {
+function getPoiEndTime(
+  poi: MarketStateOverlay['pois'][number],
+  candles: CandleData[],
+): Time {
+  return poi.endTime ?? candles[candles.length - 1]?.time ?? poi.startTime;
+}
+
+function getMarketStateVisibleRange(
+  marketState: MarketStateOverlay,
+  candles: CandleData[],
+) {
   const timestamps = [
     Number(marketState.marketStructure.eventPrice.time),
     Number(marketState.marketStructure.time),
     ...marketState.pois.flatMap((poi) => [
       Number(poi.startTime),
-      Number(poi.endTime),
+      Number(getPoiEndTime(poi, candles)),
     ]),
   ];
   const start = Math.min(...timestamps);
@@ -223,7 +233,7 @@ export function ChartPanel({
 
     const { marketStructure: structure } = marketState;
     const structureColor = structure.bias === 'BEARISH' ? '#ef626c' : '#20b887';
-    marketStateRangeRef.current = getMarketStateVisibleRange(marketState);
+    marketStateRangeRef.current = getMarketStateVisibleRange(marketState, candlesData);
     marketStructure.applyOptions({ color: structureColor });
     const labelTime = getMarketStateLabelTime(
       candlesData,
@@ -237,6 +247,7 @@ export function ChartPanel({
     ]);
 
     for (const poi of marketState.pois) {
+      const endTime = getPoiEndTime(poi, candlesData);
       const color = poi.type === 'FVG'
         ? 'rgba(139, 92, 246, 0.14)'
         : poi.direction === 'BULLISH'
@@ -258,7 +269,7 @@ export function ChartPanel({
       });
       series.setData([
         { time: poi.startTime, value: poi.high },
-        { time: poi.endTime, value: poi.high },
+        { time: endTime, value: poi.high },
       ]);
       poiSeriesRef.current.push(series);
     }
@@ -309,7 +320,7 @@ export function ChartPanel({
           size: 0,
         },
         ...marketState.pois.map((poi) => ({
-          time: getMarketStateLabelTime(candlesData, poi.startTime, poi.endTime),
+          time: getMarketStateLabelTime(candlesData, poi.startTime, getPoiEndTime(poi, candlesData)),
           position: 'atPriceMiddle' as const,
           price: poi.high,
           shape: 'circle' as const,

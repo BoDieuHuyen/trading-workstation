@@ -243,7 +243,7 @@ function parseMarketStates(source: string): BacktestMarketState[] {
       },
       pois: pois.map((poi) => ({
         startTime: poi.time as UTCTimestamp,
-        endTime: (poi.end_time ?? structure.time) as UTCTimestamp,
+        endTime: poi.end_time as UTCTimestamp | null,
         high: poi.high,
         low: poi.low,
         score: poi.scored,

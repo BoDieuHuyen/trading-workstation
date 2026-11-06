@@ -106,6 +106,7 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
         <BacktestReplayControls
           marketStructureCount={marketStates.length}
           marketStructureNumber={currentMarketState?.marketStructure.number ?? null}
+          marketStructureNumbers={marketStates.map((state) => state.marketStructure.number)}
         />
         <div className="event-panel__content" />
       </aside>

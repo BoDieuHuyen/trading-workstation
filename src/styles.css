@@ -55,6 +55,15 @@ button { cursor: pointer; }
 .backtest-replay__timeframe { min-width: 27px; padding: 4px 5px; border: 0; border-radius: 4px; color: #8295ac; background: transparent; font-size: 9px; font-weight: 700; }
 .backtest-replay__timeframe:hover { color: #c7d3e2; }
 .backtest-replay__timeframe--active { color: #83b5ff; background: #20334a; }
+.backtest-replay__search { display: flex; align-items: center; gap: 5px; margin-top: 10px; padding: 3px 4px 3px 8px; border: 1px solid #293b52; border-radius: 6px; background: #172538; color: #8295ac; }
+.backtest-replay__search:focus-within { border-color: #365677; box-shadow: 0 0 0 1px #36567744; }
+.backtest-replay__search input { min-width: 0; width: 100%; padding: 4px 0; border: 0; outline: 0; color: #dce6f3; background: transparent; font: 10px "DM Mono", monospace; }
+.backtest-replay__search input::placeholder { color: #71849c; font: 9px Inter, sans-serif; }
+.backtest-replay__search input::-webkit-inner-spin-button, .backtest-replay__search input::-webkit-outer-spin-button { margin: 0; appearance: none; }
+.backtest-replay__search button { display: grid; place-items: center; width: 23px; height: 23px; flex: 0 0 23px; padding: 0; border: 0; border-radius: 4px; color: #91a2b8; background: transparent; }
+.backtest-replay__search button:hover:not(:disabled) { color: #dce6f3; background: #22344a; }
+.backtest-replay__search button:disabled { opacity: .4; cursor: default; }
+.backtest-replay__search-error { display: block; margin-top: 4px; color: #f06c79; font-size: 8px; }
 .backtest-replay__progress { display: grid; gap: 5px; margin-top: 11px; }
 .backtest-replay__progress-heading { display: flex; align-items: center; justify-content: space-between; color: #71849c; font-size: 8px; font-weight: 700; letter-spacing: .7px; }
 .backtest-replay__progress-count { color: #dce6f3; font: 10px "DM Mono", monospace; letter-spacing: 0; }
