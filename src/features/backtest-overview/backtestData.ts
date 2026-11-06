@@ -4,9 +4,11 @@ import type {
   Time,
   UTCTimestamp,
 } from 'lightweight-charts';
+import htfDataUrl from '../../backtest-results/data/htf_data.js?url';
 import htfCandlesUrl from '../../backtest-results/data/htf_candles.js?url';
 import htfMarketStatesUrl from '../../backtest-results/data/htf_market_states.js?url';
 import htfSwingsUrl from '../../backtest-results/data/htf_swings.js?url';
+import ltfDataUrl from '../../backtest-results/data/ltf_data.js?url';
 import ltfCandlesUrl from '../../backtest-results/data/ltf_candles.js?url';
 import ltfMarketStatesUrl from '../../backtest-results/data/ltf_market_states.js?url';
 import ltfSwingsUrl from '../../backtest-results/data/ltf_swings.js?url';
@@ -15,6 +17,11 @@ import type { MarketStateOverlay } from '../chart/marketState.types';
 
 type TimeframeMode = 'htf' | 'ltf';
 
+const dataUrls: Record<TimeframeMode, string> = {
+  htf: htfDataUrl,
+  ltf: ltfDataUrl,
+};
+
 interface BacktestCandle {
   time: number;
   open: number;
@@ -22,6 +29,15 @@ interface BacktestCandle {
   low: number;
   close: number;
   volume?: number;
+}
+
+function parseGeneratedAt(source: string): string {
+  const match = source.match(/(?:^|\n)\s*generated_at\s*=\s*(['"])(.*?)\1\s*;/);
+  if (!match?.[2]) {
+    throw new Error('Backtest data is missing a valid generated_at value.');
+  }
+
+  return match[2];
 }
 
 const candleUrls: Record<TimeframeMode, string> = {
@@ -265,6 +281,19 @@ export async function loadBacktestCandles(
   }
 
   return parseCandles(await response.text());
+}
+
+export async function loadBacktestGeneratedAt(
+  timeframeMode: TimeframeMode,
+): Promise<string> {
+  const response = await fetch(dataUrls[timeframeMode]);
+  if (!response.ok) {
+    throw new Error(
+      `Could not load ${timeframeMode.toUpperCase()} backtest metadata (${response.status}).`,
+    );
+  }
+
+  return parseGeneratedAt(await response.text());
 }
 
 export async function loadBacktestMarketStates(

@@ -1,12 +1,13 @@
 import { ListFilter } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { MARKET_SYMBOLS, type MarketSymbol } from '../../config/marketSymbols';
+import type { MarketSymbol } from '../../config/marketSymbols';
 import { SYSTEM_CONFIG } from '../../config/system';
 import { CANDLE_SERIES_OPTIONS, getChartOptions } from '../chart/chartConfig';
 import { getCandle } from '../chart/chartData';
 import { ChartPanel } from '../chart/ChartPanel';
 import {
   loadBacktestCandles,
+  loadBacktestGeneratedAt,
   loadBacktestMarketStates,
   loadBacktestSwings,
 } from './backtestData';
@@ -24,7 +25,6 @@ interface BacktestOverviewProps {
 }
 
 export function BacktestOverview({ symbol }: BacktestOverviewProps) {
-  const selectedMarket = MARKET_SYMBOLS[symbol];
   const timeframeMode = useWorkspaceStore((state) => state.backtestTimeframe);
   const replayIndex = useWorkspaceStore((state) => state.replayIndex);
   const setReplayLastIndex = useWorkspaceStore((state) => state.setReplayLastIndex);
@@ -32,6 +32,7 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   const [candlesData, setCandlesData] = useState<CandlestickData<Time>[]>([]);
   const [marketStates, setMarketStates] = useState<Awaited<ReturnType<typeof loadBacktestMarketStates>>>([]);
   const [swingMarkers, setSwingMarkers] = useState<Awaited<ReturnType<typeof loadBacktestSwings>>>([]);
+  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,17 +40,20 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
     setCandlesData([]);
     setMarketStates([]);
     setSwingMarkers([]);
+    setGeneratedAt(null);
     setDataError(null);
     setReplayLastIndex(-1);
 
     Promise.all([
       loadBacktestCandles(timeframeMode),
+      loadBacktestGeneratedAt(timeframeMode),
       loadBacktestMarketStates(timeframeMode),
       loadBacktestSwings(timeframeMode),
     ]).then(
-      ([candles, states, swings]) => {
+      ([candles, timestamp, states, swings]) => {
         if (!cancelled) {
           setCandlesData(candles);
+          setGeneratedAt(timestamp);
           setMarketStates(states);
           setSwingMarkers(swings);
           setReplayLastIndex(states.length - 1);
@@ -82,7 +86,7 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
           panelId="backtest"
           symbol={symbol}
           timeframe={timeframe}
-          subtitle={`${selectedMarket.baseAsset} / ${selectedMarket.quoteAsset} · ${SYSTEM_CONFIG.ui.chart.spot}`}
+          subtitle={generatedAt ?? ''}
           candlesData={visibleCandles}
           currentCandle={currentCandle}
           chartOptions={getChartOptions}
