@@ -30,7 +30,7 @@ interface ChartPanelProps {
   subtitle: string;
   candlesData: CandleData[];
   currentCandle: Candle | null;
-  chartOptions: (showGrid: boolean) => DeepPartial<ChartOptions>;
+  chartOptions: () => DeepPartial<ChartOptions>;
   seriesOptions: CandlestickSeriesPartialOptions;
   statusLabel: string;
   toolbarContent?: ReactNode;
@@ -124,10 +124,9 @@ export function ChartPanel({
   const candlesDataRef = useRef(candlesData);
   const hasInitialDataRef = useRef(false);
   const previousDataLengthRef = useRef(0);
-  const [showGrid, setShowGrid] = useState(true);
-  const [showSwings, setShowSwings] = useState(true);
-  const [showBOS, setShowBOS] = useState(true);
-  const [showFVG, setShowFVG] = useState(false);
+  const [showSwings, setShowSwings] = useState(false);
+  const [showFVG, setShowFVG] = useState(true);
+  const [showOB, setShowOB] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [selectedCandle, setSelectedCandle] = useState<{
     data: CandleTooltipData;
@@ -150,7 +149,7 @@ export function ChartPanel({
     if (!hostRef.current) return;
     const { chart, candles } = initializeChart(
       hostRef.current,
-      chartOptions(showGrid),
+      chartOptions(),
       seriesOptions,
     );
     chartRef.current = chart;
@@ -246,7 +245,10 @@ export function ChartPanel({
       { time: structure.time, value: structure.eventPrice.price },
     ]);
 
-    for (const poi of marketState.pois) {
+    const visiblePois = marketState.pois.filter((poi) => (
+      poi.type === 'FVG' ? showFVG : showOB
+    ));
+    for (const poi of visiblePois) {
       const endTime = getPoiEndTime(poi, candlesData);
       const color = poi.type === 'FVG'
         ? 'rgba(139, 92, 246, 0.14)'
@@ -275,7 +277,7 @@ export function ChartPanel({
     }
 
     chart.timeScale().setVisibleRange(marketStateRangeRef.current);
-  }, [candlesData, marketState]);
+  }, [candlesData, marketState, showFVG, showOB]);
 
   useEffect(() => {
     candlesRef.current?.setData([]);
@@ -311,33 +313,31 @@ export function ChartPanel({
             marketState.marketStructure.time,
           ),
           position: marketState.marketStructure.bias === 'BEARISH'
-            ? 'atPriceBottom'
-            : 'atPriceTop',
+            ? 'atPriceBottom' as const
+            : 'atPriceTop' as const,
           price: marketState.marketStructure.eventPrice.price,
-          shape: 'circle',
+          shape: 'circle' as const,
           color: marketState.marketStructure.bias === 'BEARISH' ? '#ef626c' : '#20b887',
           text: `${marketState.marketStructure.event === 'choch' ? 'CHoCH' : 'BOS'}: ${marketState.marketStructure.score.toFixed(2)}`,
           size: 0,
         },
-        ...marketState.pois.map((poi) => ({
-          time: getMarketStateLabelTime(candlesData, poi.startTime, getPoiEndTime(poi, candlesData)),
-          position: 'atPriceMiddle' as const,
-          price: poi.high,
-          shape: 'circle' as const,
-          color: getPoiLineColor(poi),
-          text: `${poi.type === 'FVG' ? 'FVG' : 'OB'}: ${poi.score.toFixed(1)}`,
-          size: 0,
-        })),
+        ...marketState.pois
+          .filter((poi) => (poi.type === 'FVG' ? showFVG : showOB))
+          .map((poi) => ({
+            time: getMarketStateLabelTime(candlesData, poi.startTime, getPoiEndTime(poi, candlesData)),
+            position: 'atPriceMiddle' as const,
+            price: poi.high,
+            shape: 'circle' as const,
+            color: getPoiLineColor(poi),
+            text: `${poi.type === 'FVG' ? 'FVG' : 'OB'}: ${poi.score.toFixed(1)}`,
+            size: 0,
+          })),
       ]
       : [];
-    const allMarkers = [...(markers ?? []), ...marketStateMarkers];
+    const allMarkers = [...(showSwings ? markers ?? [] : []), ...marketStateMarkers];
     allMarkers.sort((left, right) => Number(left.time) - Number(right.time));
     markersRef.current?.setMarkers(allMarkers);
-  }, [candlesData, markers, marketState]);
-
-  useEffect(() => {
-    chartRef.current?.applyOptions(chartOptions(showGrid));
-  }, [chartOptions, showGrid]);
+  }, [candlesData, markers, marketState, showFVG, showOB, showSwings]);
 
   return (
     <ChartPanelView
@@ -346,14 +346,12 @@ export function ChartPanel({
       timeframe={timeframe}
       subtitle={subtitle}
       chartHostRef={hostRef}
-      showGrid={showGrid}
-      onShowGridChange={setShowGrid}
       showSwings={showSwings}
       onShowSwingsChange={setShowSwings}
-      showBOS={showBOS}
-      onShowBOSChange={setShowBOS}
       showFVG={showFVG}
       onShowFVGChange={setShowFVG}
+      showOB={showOB}
+      onShowOBChange={setShowOB}
       expanded={expanded}
       onToggleExpanded={() => setExpanded((isExpanded) => !isExpanded)}
       statusLabel={statusLabel}

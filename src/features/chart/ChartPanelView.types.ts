@@ -9,14 +9,12 @@ export interface ChartPanelViewProps {
   timeframe: string;
   subtitle: string;
   chartHostRef: RefObject<HTMLDivElement>;
-  showGrid: boolean;
-  onShowGridChange: (show: boolean) => void;
   showSwings: boolean;
   onShowSwingsChange: (show: boolean) => void;
-  showBOS: boolean;
-  onShowBOSChange: (show: boolean) => void;
   showFVG: boolean;
   onShowFVGChange: (show: boolean) => void;
+  showOB: boolean;
+  onShowOBChange: (show: boolean) => void;
   expanded: boolean;
   onToggleExpanded: () => void;
   statusLabel: string;

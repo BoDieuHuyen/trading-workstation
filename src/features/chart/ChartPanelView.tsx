@@ -10,14 +10,12 @@ export function ChartPanelView({
   timeframe,
   subtitle,
   chartHostRef,
-  showGrid,
-  onShowGridChange,
   showSwings,
   onShowSwingsChange,
-  showBOS,
-  onShowBOSChange,
   showFVG,
   onShowFVGChange,
+  showOB,
+  onShowOBChange,
   expanded,
   onToggleExpanded,
   statusLabel,
@@ -73,13 +71,12 @@ export function ChartPanelView({
       <div className="chart-toolbar">
         {toolbarContent ?? (
           <>
-            <label className="mini-toggle"><input type="checkbox" checked={showGrid} onChange={(event) => onShowGridChange(event.target.checked)} /> {SYSTEM_CONFIG.ui.chart.grid}</label>
             <label className="mini-toggle"><input type="checkbox" checked={showSwings} onChange={(event) => onShowSwingsChange(event.target.checked)} /> {SYSTEM_CONFIG.ui.chart.swings}</label>
-            <label className="mini-toggle"><input type="checkbox" checked={showBOS} onChange={(event) => onShowBOSChange(event.target.checked)} /> {SYSTEM_CONFIG.ui.chart.bos}</label>
             <label className="mini-toggle"><input type="checkbox" checked={showFVG} onChange={(event) => onShowFVGChange(event.target.checked)} /> {SYSTEM_CONFIG.ui.chart.fvg}</label>
+            <label className="mini-toggle"><input type="checkbox" checked={showOB} onChange={(event) => onShowOBChange(event.target.checked)} /> {SYSTEM_CONFIG.ui.chart.ob}</label>
             <span className="toolbar-spacer" />
             <span className="chart-status"><Activity size={12} /> {statusLabel}</span>
-            <span className="sr-only">{panelId}-{showSwings}-{showBOS}-{showFVG}</span>
+            <span className="sr-only">{panelId}-{showSwings}-{showFVG}-{showOB}</span>
           </>
         )}
       </div>

@@ -7,7 +7,7 @@ import {
 const GRID_COLOR = '#1b2a3d';
 const CHART_BACKGROUND_COLOR = '#101a2a';
 
-export function getChartOptions(showGrid: boolean) {
+export function getChartOptions() {
   return {
     autoSize: true,
     layout: {
@@ -16,7 +16,7 @@ export function getChartOptions(showGrid: boolean) {
       fontFamily: 'Inter, ui-sans-serif, system-ui',
       fontSize: 11,
     },
-    grid: getChartGridOptions(showGrid),
+    grid: getChartGridOptions(),
     crosshair: { mode: CrosshairMode.Normal },
     rightPriceScale: { borderColor: '#26364b' },
     timeScale: { borderColor: '#26364b', timeVisible: true, secondsVisible: false },
@@ -25,11 +25,10 @@ export function getChartOptions(showGrid: boolean) {
   };
 }
 
-export function getChartGridOptions(showGrid: boolean) {
-  const color = showGrid ? GRID_COLOR : CHART_BACKGROUND_COLOR;
+export function getChartGridOptions() {
   return {
-    vertLines: { color },
-    horzLines: { color },
+    vertLines: { color: GRID_COLOR },
+    horzLines: { color: GRID_COLOR },
   };
 }
 
