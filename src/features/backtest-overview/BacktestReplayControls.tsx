@@ -11,7 +11,15 @@ import { useWorkspaceStore } from '../../stores/workspaceStore';
 
 const REPLAY_SPEEDS = [1, 2, 5, 10] as const;
 
-export function BacktestReplayControls() {
+interface BacktestReplayControlsProps {
+  marketStructureNumber: number | null;
+  marketStructureCount: number;
+}
+
+export function BacktestReplayControls({
+  marketStructureNumber,
+  marketStructureCount,
+}: BacktestReplayControlsProps) {
   const timeframe = useWorkspaceStore((state) => state.backtestTimeframe);
   const replayIndex = useWorkspaceStore((state) => state.replayIndex);
   const replayLastIndex = useWorkspaceStore((state) => state.replayLastIndex);
@@ -26,6 +34,11 @@ export function BacktestReplayControls() {
   const setAutoReplay = useWorkspaceStore((state) => state.setAutoReplay);
   const setReplaySpeed = useWorkspaceStore((state) => state.setReplaySpeed);
   const hasReplayData = replayLastIndex >= 0;
+  const progressMaximum = Math.max(marketStructureCount, 1);
+  const progressValue = Math.min(marketStructureNumber ?? 0, progressMaximum);
+  const progressPercent = marketStructureNumber === null
+    ? 0
+    : (progressValue / progressMaximum) * 100;
 
   return (
     <section className="backtest-replay" aria-label={SYSTEM_CONFIG.ui.backtestReplay.ariaLabel}>
@@ -50,6 +63,28 @@ export function BacktestReplayControls() {
           </button>
         </div>
       </header>
+
+      <div className="backtest-replay__progress">
+        <div className="backtest-replay__progress-heading">
+          <span>MARKET STRUCTURE</span>
+          <span className="backtest-replay__progress-count">
+            {marketStructureNumber === null ? '--' : marketStructureNumber} / {marketStructureCount || '--'}
+          </span>
+        </div>
+        <div
+          className="backtest-replay__progress-track"
+          role="progressbar"
+          aria-label="Market structure progress"
+          aria-valuemin={0}
+          aria-valuemax={progressMaximum}
+          aria-valuenow={progressValue}
+          aria-valuetext={marketStructureNumber === null
+            ? `No market structure selected; ${marketStructureCount} total`
+            : `Market structure ${marketStructureNumber} of ${marketStructureCount}`}
+        >
+          <span style={{ width: `${progressPercent}%` }} />
+        </div>
+      </div>
 
       <div className="backtest-replay__transport">
         <button type="button" title={SYSTEM_CONFIG.ui.backtestReplay.first} aria-label={SYSTEM_CONFIG.ui.backtestReplay.first} disabled={!hasReplayData || replayIndex === 0} onClick={jumpToReplayStart}>

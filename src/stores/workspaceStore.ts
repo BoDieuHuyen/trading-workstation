@@ -57,7 +57,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   )),
   setReplayLastIndex: (replayLastIndex) => set({
     replayLastIndex,
-    replayIndex: Math.max(0, replayLastIndex),
+    replayIndex: 0,
     replayPlaying: false,
   }),
   setReplayIndex: (index) => set((state) => ({

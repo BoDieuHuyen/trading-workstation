@@ -55,6 +55,11 @@ button { cursor: pointer; }
 .backtest-replay__timeframe { min-width: 27px; padding: 4px 5px; border: 0; border-radius: 4px; color: #8295ac; background: transparent; font-size: 9px; font-weight: 700; }
 .backtest-replay__timeframe:hover { color: #c7d3e2; }
 .backtest-replay__timeframe--active { color: #83b5ff; background: #20334a; }
+.backtest-replay__progress { display: grid; gap: 5px; margin-top: 11px; }
+.backtest-replay__progress-heading { display: flex; align-items: center; justify-content: space-between; color: #71849c; font-size: 8px; font-weight: 700; letter-spacing: .7px; }
+.backtest-replay__progress-count { color: #dce6f3; font: 10px "DM Mono", monospace; letter-spacing: 0; }
+.backtest-replay__progress-track { height: 4px; overflow: hidden; border-radius: 999px; background: #1b2b3f; }
+.backtest-replay__progress-track > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #287f70, #55d6af); transition: width .18s ease; }
 .backtest-replay__transport { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
 .backtest-replay__transport > button { display: grid; place-items: center; min-width: 0; height: 28px; padding: 0; border: 1px solid #2b3b50; border-radius: 6px; color: #91a2b8; background: #172538; }
 .backtest-replay__transport > button:hover:not(:disabled) { color: #dce6f3; background: #22344a; border-color: #3a526f; }

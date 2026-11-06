@@ -5,11 +5,19 @@ import { SYSTEM_CONFIG } from '../../config/system';
 import { CANDLE_SERIES_OPTIONS, getChartOptions } from '../chart/chartConfig';
 import { getCandle } from '../chart/chartData';
 import { ChartPanel } from '../chart/ChartPanel';
-import { loadBacktestCandles, loadBacktestSwings } from './backtestData';
+import {
+  loadBacktestCandles,
+  loadBacktestMarketStates,
+  loadBacktestSwings,
+} from './backtestData';
 import { BacktestReplayControls } from './BacktestReplayControls';
 import { useWorkspaceStore } from '../../stores/workspaceStore';
 import type { CandlestickData, Time } from 'lightweight-charts';
-import type { SeriesMarker } from 'lightweight-charts';
+
+const BACKTEST_CANDLE_SERIES_OPTIONS = {
+  ...CANDLE_SERIES_OPTIONS,
+  priceLineVisible: false,
+};
 
 interface BacktestOverviewProps {
   symbol: MarketSymbol;
@@ -22,28 +30,29 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   const setReplayLastIndex = useWorkspaceStore((state) => state.setReplayLastIndex);
   const timeframe = timeframeMode === 'htf' ? '1h' : '5m';
   const [candlesData, setCandlesData] = useState<CandlestickData<Time>[]>([]);
-  const [swingMarkers, setSwingMarkers] = useState<SeriesMarker<Time>[]>([]);
+  const [marketStates, setMarketStates] = useState<Awaited<ReturnType<typeof loadBacktestMarketStates>>>([]);
+  const [swingMarkers, setSwingMarkers] = useState<Awaited<ReturnType<typeof loadBacktestSwings>>>([]);
   const [dataError, setDataError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setCandlesData([]);
+    setMarketStates([]);
     setSwingMarkers([]);
     setDataError(null);
     setReplayLastIndex(-1);
 
-    const dataPromise = timeframeMode === 'htf'
-      ? Promise.all([loadBacktestCandles('htf'), loadBacktestSwings()])
-      : loadBacktestCandles('ltf').then(
-        (candles): [CandlestickData<Time>[], SeriesMarker<Time>[]] => [candles, []],
-      );
-
-    dataPromise.then(
-      ([candles, markers]) => {
+    Promise.all([
+      loadBacktestCandles(timeframeMode),
+      loadBacktestMarketStates(timeframeMode),
+      loadBacktestSwings(timeframeMode),
+    ]).then(
+      ([candles, states, swings]) => {
         if (!cancelled) {
           setCandlesData(candles);
-          setSwingMarkers(markers);
-          setReplayLastIndex(candles.length - 1);
+          setMarketStates(states);
+          setSwingMarkers(swings);
+          setReplayLastIndex(states.length - 1);
         }
       },
       (error: unknown) => {
@@ -60,10 +69,11 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
 
   const visibleCandles = replayIndex < 0
     ? []
-    : candlesData.slice(0, replayIndex + 1);
+    : candlesData;
   const currentCandle = visibleCandles.length > 0
     ? getCandle(visibleCandles, symbol)
     : null;
+  const currentMarketState = marketStates[replayIndex] ?? null;
 
   return (
     <div className="market-workspace">
@@ -76,9 +86,10 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
           candlesData={visibleCandles}
           currentCandle={currentCandle}
           chartOptions={getChartOptions}
-          seriesOptions={CANDLE_SERIES_OPTIONS}
+          seriesOptions={BACKTEST_CANDLE_SERIES_OPTIONS}
           statusLabel={SYSTEM_CONFIG.ui.chart.demoData}
           markers={swingMarkers}
+          marketState={currentMarketState}
           toolbarContent={dataError
             ? <span className="chart-status" role="alert">{dataError}</span>
             : undefined}
@@ -92,7 +103,10 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
           </div>
           <button className="icon-button" title={SYSTEM_CONFIG.ui.eventPanel.filterTitle}><ListFilter size={15} /></button>
         </header>
-        <BacktestReplayControls />
+        <BacktestReplayControls
+          marketStructureCount={marketStates.length}
+          marketStructureNumber={currentMarketState?.marketStructure.number ?? null}
+        />
         <div className="event-panel__content" />
       </aside>
     </div>
