@@ -12,6 +12,7 @@ import ltfDataUrl from '../../backtest-results/data/ltf_data.js?url';
 import ltfCandlesUrl from '../../backtest-results/data/ltf_candles.js?url';
 import ltfMarketStatesUrl from '../../backtest-results/data/ltf_market_states.js?url';
 import ltfSwingsUrl from '../../backtest-results/data/ltf_swings.js?url';
+import setupDataUrl from '../../backtest-results/data/setup_data.js?url';
 import type { CandleData } from '../chart/candle.types';
 import type { MarketStateOverlay } from '../chart/marketState.types';
 
@@ -85,6 +86,10 @@ interface BacktestSwing {
   price: number;
 }
 
+interface BacktestSetup {
+  time: number;
+}
+
 export type BacktestMarketState = MarketStateOverlay;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -93,6 +98,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isBacktestSetup(value: unknown): value is BacktestSetup {
+  return isRecord(value)
+    && isFiniteNumber(value.time)
+    && Number.isSafeInteger(value.time)
+    && value.time > 0;
 }
 
 function isBacktestCandle(value: unknown): value is BacktestCandle {
@@ -270,6 +282,24 @@ function parseMarketStates(source: string): BacktestMarketState[] {
     .sort((left, right) => Number(left.marketStructure.time) - Number(right.marketStructure.time));
 }
 
+function parseSetupTimes(source: string): Set<number> {
+  const assignmentIndex = source.indexOf('const setups=');
+  const arrayStart = source.indexOf('[', assignmentIndex);
+  const arrayEnd = source.lastIndexOf(']');
+  if (assignmentIndex < 0 || arrayStart < 0 || arrayEnd <= arrayStart) {
+    throw new Error('Backtest setup data has an invalid format.');
+  }
+
+  const parsed: unknown = JSON.parse(
+    source.slice(arrayStart, arrayEnd + 1).replace(/,\s*([}\]])/g, '$1'),
+  );
+  if (!Array.isArray(parsed) || parsed.length === 0 || !parsed.every(isBacktestSetup)) {
+    throw new Error('Backtest setup data is empty or contains invalid setups.');
+  }
+
+  return new Set(parsed.map((setup: BacktestSetup) => setup.time));
+}
+
 export async function loadBacktestCandles(
   timeframeMode: TimeframeMode,
 ): Promise<CandlestickData<Time>[]> {
@@ -307,6 +337,15 @@ export async function loadBacktestMarketStates(
   }
 
   return parseMarketStates(await response.text());
+}
+
+export async function loadBacktestSetupTimes(): Promise<Set<number>> {
+  const response = await fetch(setupDataUrl);
+  if (!response.ok) {
+    throw new Error(`Could not load backtest setup data (${response.status}).`);
+  }
+
+  return parseSetupTimes(await response.text());
 }
 
 export async function loadBacktestSwings(

@@ -17,12 +17,18 @@ interface BacktestReplayControlsProps {
   marketStructureNumber: number | null;
   marketStructureCount: number;
   marketStructureNumbers: number[];
+  quickFilter: 'all' | 'setup';
+  onQuickFilterChange: (filter: 'all' | 'setup') => void;
+  showSetupFilter: boolean;
 }
 
 export function BacktestReplayControls({
   marketStructureNumber,
   marketStructureCount,
   marketStructureNumbers,
+  quickFilter,
+  onQuickFilterChange,
+  showSetupFilter,
 }: BacktestReplayControlsProps) {
   const [searchValue, setSearchValue] = useState('');
   const [searchError, setSearchError] = useState('');
@@ -88,25 +94,56 @@ export function BacktestReplayControls({
         </div>
       </header>
 
-      <form className="backtest-replay__search" onSubmit={handleSearch}>
-        <input
-          type="number"
-          step="1"
-          value={searchValue}
-          aria-label={SYSTEM_CONFIG.ui.backtestReplay.searchAriaLabel}
-          aria-invalid={Boolean(searchError)}
-          aria-describedby={searchError ? 'backtest-replay-search-error' : undefined}
-          placeholder={SYSTEM_CONFIG.ui.backtestReplay.searchPlaceholder}
-          disabled={!hasReplayData}
-          onChange={(event) => {
-            setSearchValue(event.target.value);
-            setSearchError('');
-          }}
-        />
-        <button type="submit" aria-label={SYSTEM_CONFIG.ui.backtestReplay.searchAriaLabel} title={SYSTEM_CONFIG.ui.backtestReplay.searchAriaLabel} disabled={!hasReplayData || !searchValue.trim()}>
-          <Search size={13} />
-        </button>
-      </form>
+      <div className="backtest-replay__search-field">
+        <label className="backtest-replay__search-label" htmlFor="backtest-replay-search">
+          {SYSTEM_CONFIG.ui.backtestReplay.searchLabel}
+        </label>
+        <form className="backtest-replay__search" onSubmit={handleSearch}>
+          <input
+            id="backtest-replay-search"
+            type="number"
+            step="1"
+            value={searchValue}
+            aria-label={SYSTEM_CONFIG.ui.backtestReplay.searchAriaLabel}
+            aria-invalid={Boolean(searchError)}
+            aria-describedby={searchError ? 'backtest-replay-search-error' : undefined}
+            placeholder={SYSTEM_CONFIG.ui.backtestReplay.searchPlaceholder}
+            disabled={!hasReplayData}
+            onChange={(event) => {
+              setSearchValue(event.target.value);
+              setSearchError('');
+            }}
+          />
+          <button type="submit" aria-label={SYSTEM_CONFIG.ui.backtestReplay.searchAriaLabel} title={SYSTEM_CONFIG.ui.backtestReplay.searchAriaLabel} disabled={!hasReplayData || !searchValue.trim()}>
+            <Search size={13} />
+          </button>
+        </form>
+      </div>
+      <div className="backtest-replay__quick-filters">
+        <span className="backtest-replay__quick-filters-label">
+          {SYSTEM_CONFIG.ui.backtestReplay.quickFiltersLabel}
+        </span>
+        <div className={`backtest-replay__quick-filters-options${showSetupFilter ? ' backtest-replay__quick-filters-options--compact' : ''}`} role="group" aria-label={SYSTEM_CONFIG.ui.backtestReplay.quickFiltersLabel}>
+          <button
+            type="button"
+            className={quickFilter === 'all' ? 'backtest-replay__quick-filter backtest-replay__quick-filter--active' : 'backtest-replay__quick-filter'}
+            aria-pressed={quickFilter === 'all'}
+            onClick={() => onQuickFilterChange('all')}
+          >
+            {SYSTEM_CONFIG.ui.backtestReplay.quickFilterAllLabel}
+          </button>
+          {showSetupFilter && (
+            <button
+              type="button"
+              className={quickFilter === 'setup' ? 'backtest-replay__quick-filter backtest-replay__quick-filter--active' : 'backtest-replay__quick-filter'}
+              aria-pressed={quickFilter === 'setup'}
+              onClick={() => onQuickFilterChange('setup')}
+            >
+              {SYSTEM_CONFIG.ui.backtestReplay.quickFilterSetupLabel}
+            </button>
+          )}
+        </div>
+      </div>
       {searchError && <span className="backtest-replay__search-error" id="backtest-replay-search-error" role="alert">{searchError}</span>}
 
       <div className="backtest-replay__progress">
