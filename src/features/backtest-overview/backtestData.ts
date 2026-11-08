@@ -91,6 +91,7 @@ interface BacktestSetup {
 
 export interface BacktestTrade {
   number: number;
+  symbol: string;
   time: number;
   endTime: number;
   side: 'LONG' | 'SHORT';
@@ -168,6 +169,7 @@ interface RawBacktestTradeTimeframe extends Record<string, unknown> {
 
 interface RawBacktestTrade extends Record<string, unknown> {
   number: number;
+  symbol: string;
   time: number;
   end_time: number;
   side: 'LONG' | 'SHORT';
@@ -263,6 +265,8 @@ function isBacktestTrade(value: unknown): value is RawBacktestTrade {
     && isFiniteNumber(value.number)
     && Number.isSafeInteger(value.number)
     && value.number > 0
+    && typeof value.symbol === 'string'
+    && value.symbol.length > 0
     && isFiniteNumber(value.time)
     && Number.isSafeInteger(value.time)
     && value.time > 0
@@ -500,6 +504,7 @@ function parseTrades(source: string): BacktestTrade[] {
 
   return parsed.map((trade) => ({
     number: trade.number,
+    symbol: trade.symbol,
     time: trade.time,
     endTime: trade.end_time,
     side: trade.side,

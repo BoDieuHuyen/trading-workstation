@@ -31,7 +31,7 @@ export const SYSTEM_CONFIG = {
       watchlist: "WATCHLIST",
       workspace: "WORKSPACE",
       chart: "Chart",
-      eventFilters: "Event filters",
+      report: "Report",
       dataExplorer: "Data explorer",
       help: "Help & shortcuts",
       watchlistTitle: "Watchlist",
@@ -41,6 +41,7 @@ export const SYSTEM_CONFIG = {
       marketAnalysis: "MARKET ANALYSIS",
       marketOverview: "Market Overview",
       backtestOverview: "Backtest Overview",
+      report: "Report",
     },
     chart: {
       spot: "Spot",

@@ -1,6 +1,6 @@
 import {
   Activity, ChevronDown, CircleHelp, Clock3, Columns2, Download, LayoutDashboard,
-  ListFilter, PanelLeftClose, Search, Settings, Star, Table2,
+  FileText, PanelLeftClose, Search, Settings, Star, Table2,
 } from 'lucide-react';
 import { useEffect } from 'react';
 import { MARKET_SYMBOLS } from '../../config/marketSymbols';
@@ -9,17 +9,20 @@ import { useWorkspaceStore } from '../../stores/workspaceStore';
 import type { TradingWorkspaceViewProps } from './TradingWorkspaceView.types';
 import { MarketOverview } from '../market-overview/MarketOverview';
 import { BacktestOverview } from '../backtest-overview/BacktestOverview';
+import { Report } from '../report/Report';
 
 const watchlist = Object.values(MARKET_SYMBOLS);
 
 export function TradingWorkspaceView({
   sidebarCollapsed,
   activeTab,
+  activeWorkspacePage,
   mode,
   selectedSymbol,
   klines,
   onToggleSidebar,
   onSetActiveTab,
+  onSetActiveWorkspacePage,
   onSetMode,
   onSetSelectedSymbol,
 }: TradingWorkspaceViewProps) {
@@ -99,8 +102,20 @@ export function TradingWorkspaceView({
                 );
               })}
               <div className="sidebar-section-title sidebar-section-title--spaced"><span>{SYSTEM_CONFIG.ui.sidebar.workspace}</span></div>
-              <button className="sidebar-link sidebar-link--active"><Columns2 size={15} /> {SYSTEM_CONFIG.ui.sidebar.chart}</button>
-              <button className="sidebar-link"><ListFilter size={15} /> {SYSTEM_CONFIG.ui.sidebar.eventFilters}</button>
+              <button
+                className={`sidebar-link${activeWorkspacePage === 'chart' ? ' sidebar-link--active' : ''}`}
+                aria-current={activeWorkspacePage === 'chart' ? 'page' : undefined}
+                onClick={() => onSetActiveWorkspacePage('chart')}
+              >
+                <Columns2 size={15} /> {SYSTEM_CONFIG.ui.sidebar.chart}
+              </button>
+              <button
+                className={`sidebar-link${activeWorkspacePage === 'eventFilters' ? ' sidebar-link--active' : ''}`}
+                aria-current={activeWorkspacePage === 'eventFilters' ? 'page' : undefined}
+                onClick={() => onSetActiveWorkspacePage('eventFilters')}
+              >
+                <FileText size={15} /> {SYSTEM_CONFIG.ui.sidebar.report}
+              </button>
               <button className="sidebar-link"><Table2 size={15} /> {SYSTEM_CONFIG.ui.sidebar.dataExplorer}</button>
               <div className="sidebar-bottom"><CircleHelp size={14} /> {SYSTEM_CONFIG.ui.sidebar.help}</div>
             </>
@@ -116,11 +131,17 @@ export function TradingWorkspaceView({
           <div className="page-heading">
             <div>
               <div className="eyebrow">{SYSTEM_CONFIG.ui.page.marketAnalysis} / {selectedSymbol}</div>
-              <h1>{mode === 'backtest' ? SYSTEM_CONFIG.ui.page.backtestOverview : SYSTEM_CONFIG.ui.page.marketOverview} <span className="heading-dot">·</span> <span className="muted-heading">{selectedSymbol}</span></h1>
+              <h1>{activeWorkspacePage === 'eventFilters'
+                ? SYSTEM_CONFIG.ui.page.report
+                : mode === 'backtest'
+                  ? SYSTEM_CONFIG.ui.page.backtestOverview
+                  : SYSTEM_CONFIG.ui.page.marketOverview} <span className="heading-dot">·</span> <span className="muted-heading">{selectedSymbol}</span></h1>
             </div>
           </div>
 
-          {mode === 'backtest' ? (
+          {activeWorkspacePage === 'eventFilters' ? (
+            <Report symbol={selectedSymbol} onSetSymbol={onSetSelectedSymbol} />
+          ) : mode === 'backtest' ? (
             <BacktestOverview symbol={selectedSymbol} />
           ) : (
             <MarketOverview

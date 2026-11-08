@@ -4,6 +4,7 @@ import { DEFAULT_MARKET_SYMBOL, type MarketSymbol } from '../config/marketSymbol
 import { SYSTEM_CONFIG, type TradingMode } from '../config/system';
 
 export type BottomTab = 'events' | 'trades' | 'signals' | 'logs';
+export type WorkspacePage = 'chart' | 'eventFilters';
 export type BacktestTimeframe = 'htf' | 'ltf';
 export type BacktestReplaySpeed = 1 | 2 | 5 | 10;
 export type { MarketSymbol } from '../config/marketSymbols';
@@ -11,6 +12,7 @@ export type { MarketSymbol } from '../config/marketSymbols';
 interface WorkspaceState {
   sidebarCollapsed: boolean;
   activeTab: BottomTab;
+  activeWorkspacePage: WorkspacePage;
   mode: TradingMode;
   selectedSymbol: MarketSymbol;
   backtestTimeframe: BacktestTimeframe;
@@ -27,6 +29,7 @@ interface WorkspaceState {
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setActiveTab: (tab: BottomTab) => void;
+  setActiveWorkspacePage: (page: WorkspacePage) => void;
   setMode: (mode: TradingMode) => void;
   setSelectedSymbol: (symbol: MarketSymbol) => void;
   setBacktestTimeframe: (timeframe: BacktestTimeframe) => void;
@@ -47,6 +50,7 @@ type PersistedWorkspaceState = Pick<
   WorkspaceState,
   | 'sidebarCollapsed'
   | 'activeTab'
+  | 'activeWorkspacePage'
   | 'mode'
   | 'selectedSymbol'
   | 'backtestTimeframe'
@@ -62,6 +66,7 @@ type PersistedWorkspaceState = Pick<
 export const useWorkspaceStore = create<WorkspaceState>()(persist((set) => ({
   sidebarCollapsed: false,
   activeTab: 'events',
+  activeWorkspacePage: 'chart',
   mode: SYSTEM_CONFIG.defaultMode,
   selectedSymbol: DEFAULT_MARKET_SYMBOL,
   backtestTimeframe: 'htf',
@@ -78,6 +83,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(persist((set) => ({
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
   setActiveTab: (activeTab) => set({ activeTab }),
+  setActiveWorkspacePage: (activeWorkspacePage) => set({ activeWorkspacePage }),
   setMode: (mode) => set({ mode, replayPlaying: false }),
   setSelectedSymbol: (selectedSymbol) => set({ selectedSymbol }),
   setBacktestTimeframe: (backtestTimeframe) => set((state) => (
@@ -139,6 +145,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(persist((set) => ({
   partialize: (state): PersistedWorkspaceState => ({
     sidebarCollapsed: state.sidebarCollapsed,
     activeTab: state.activeTab,
+    activeWorkspacePage: state.activeWorkspacePage,
     mode: state.mode,
     selectedSymbol: state.selectedSymbol,
     backtestTimeframe: state.backtestTimeframe,
