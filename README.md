@@ -31,6 +31,16 @@ npm run build
 npm run preview
 ```
 
+## Run in production with Docker
+
+Build and start the production container:
+
+```bash
+docker compose up --build -d
+```
+
+Open http://localhost:8080. To use another host port, set `APP_PORT` (for example, `APP_PORT=9000 docker compose up --build -d`). Check container health with `docker compose ps`, and stop it with `docker compose down`.
+
 ## Included
 
 - Dark trading workstation layout
