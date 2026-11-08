@@ -3,6 +3,14 @@ import type { ReactNode } from 'react';
 import type { MarketSymbol } from '../../config/marketSymbols';
 import type { Candle, CandleTooltipData } from './candle.types';
 
+export interface ChartPoiLabel {
+  timeframe: 'htf' | 'ltf';
+  text: string;
+  color: string;
+  left: number;
+  top: number;
+}
+
 export interface ChartPanelViewProps {
   panelId: string;
   symbol: MarketSymbol;
@@ -19,6 +27,7 @@ export interface ChartPanelViewProps {
   onToggleExpanded: () => void;
   statusLabel: string;
   currentCandle: Candle | null;
+  poiLabels: ChartPoiLabel[];
   selectedCandle: {
     data: CandleTooltipData;
     left: number;

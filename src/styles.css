@@ -173,6 +173,9 @@ button { cursor: pointer; }
 .chart-status { display: flex; align-items: center; gap: 4px; color: #647991; font-size: 9px; white-space: nowrap; }
 .chart-canvas-wrap { flex: 1; min-height: 0; position: relative; }
 .chart-canvas { position: absolute; inset: 0; }
+.chart-poi-label { position: absolute; z-index: 1; pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px #101a2a; }
+.chart-poi-label--htf { transform: translate(6px, -100%); font-size: 14px; font-weight: 700; }
+.chart-poi-label--ltf { transform: translate(6px, 0); font-size: 11px; font-weight: 600; }
 .chart-watermark { position: absolute; pointer-events: none; bottom: 12px; left: 12px; color: #40536a55; font-size: 9px; font-weight: 800; letter-spacing: 2px; }
 .candle-tooltip { position: absolute; z-index: 2; width: 282px; max-width: calc(100% - 16px); padding: 7px 9px 6px; border: 1px solid #26364b; border-radius: 6px; background: #101a2a; box-shadow: 0 2px 8px #0005; color: #909eae; font-size: 10px; line-height: 1.5; pointer-events: auto; }
 .candle-tooltip__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; color: #b7c3d1; font-size: 11px; }

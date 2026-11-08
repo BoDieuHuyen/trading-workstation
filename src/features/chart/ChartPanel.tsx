@@ -22,6 +22,7 @@ import type { MarketStateOverlay, TradeChartOverlay } from './marketState.types'
 import { getCandleTooltipData } from './candleTooltip';
 import { initializeChart } from './chartSetup';
 import { ChartPanelView } from './ChartPanelView';
+import type { ChartPoiLabel } from './ChartPanelView.types';
 
 interface ChartPanelProps {
   panelId: string;
@@ -132,11 +133,79 @@ function getMarketStateLabelTime(
 }
 
 function getPoiLineColor(poi: MarketStateOverlay['pois'][number]): string {
-  return poi.type === 'FVG'
+  const color = poi.type === 'FVG'
     ? '#8b5cf6'
     : poi.direction === 'BULLISH'
       ? '#20b887'
       : '#ef626c';
+  return color;
+}
+
+function getPoiLineColorWithOpacity(
+  poi: MarketStateOverlay['pois'][number],
+  opacity: number,
+): string {
+  const color = getPoiLineColor(poi);
+  const red = Number.parseInt(color.slice(1, 3), 16);
+  const green = Number.parseInt(color.slice(3, 5), 16);
+  const blue = Number.parseInt(color.slice(5, 7), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${opacity})`;
+}
+
+function getPoiFillColor(
+  poi: MarketStateOverlay['pois'][number],
+  opacity = 0.14,
+): string {
+  if (poi.type === 'FVG') return `rgba(139, 92, 246, ${opacity})`;
+  return poi.direction === 'BULLISH'
+    ? `rgba(32, 184, 135, ${opacity})`
+    : `rgba(239, 98, 108, ${opacity})`;
+}
+
+function getTradePoiLabel(
+  chart: IChartApi,
+  candles: ISeriesApi<'Candlestick'>,
+  chartHost: HTMLDivElement,
+  candlesData: CandleData[],
+  poi: MarketStateOverlay['pois'][number] | null,
+  timeframe: ChartPoiLabel['timeframe'],
+): ChartPoiLabel | null {
+  if (!poi) return null;
+
+  const visibleRange = chart.timeScale().getVisibleRange();
+  if (!visibleRange) return null;
+
+  const labelStart = Math.max(Number(visibleRange.from), Number(poi.startTime));
+  const labelEnd = Math.min(Number(visibleRange.to), Number(getPoiEndTime(poi, candlesData)));
+  if (labelStart > labelEnd) return null;
+
+  const labelTime = getMarketStateLabelTime(
+    candlesData,
+    labelStart as UTCTimestamp,
+    labelEnd as UTCTimestamp,
+  );
+  const left = chart.timeScale().timeToCoordinate(labelTime);
+  const top = candles.priceToCoordinate(poi.high);
+  if (
+    left === null
+    || top === null
+    || left < 0
+    || left > chartHost.clientWidth
+    || top < 0
+    || top > chartHost.clientHeight
+  ) {
+    return null;
+  }
+
+  return {
+    timeframe,
+    text: poi.type === 'FVG' ? 'FVG' : timeframe === 'ltf' ? 'order block' : 'OB',
+    color: timeframe === 'htf'
+      ? getPoiLineColorWithOpacity(poi, 0.58)
+      : getPoiLineColor(poi),
+    left,
+    top,
+  };
 }
 
 export function ChartPanel({
@@ -169,6 +238,8 @@ export function ChartPanel({
   const [showFVG, setShowFVG] = useState(true);
   const [showOB, setShowOB] = useState(true);
   const [expanded, setExpanded] = useState(false);
+  const [poiLabels, setPoiLabels] = useState<ChartPoiLabel[]>([]);
+  const [poiLabelRevision, setPoiLabelRevision] = useState(0);
   const [selectedCandle, setSelectedCandle] = useState<{
     data: CandleTooltipData;
     left: number;
@@ -197,10 +268,25 @@ export function ChartPanel({
     candlesRef.current = candles;
     markersRef.current = createSeriesMarkers(candles, markers ?? []);
     const timeScale = chart.timeScale();
+    let poiLabelUpdateFrame: number | null = null;
+    const schedulePoiLabelUpdate = () => {
+      if (poiLabelUpdateFrame !== null) return;
+      poiLabelUpdateFrame = window.requestAnimationFrame(() => {
+        poiLabelUpdateFrame = null;
+        setPoiLabelRevision((revision) => revision + 1);
+      });
+    };
     const onVisibleTimeRangeChange = (range: { from: Time; to: Time } | null) => {
       marketStateRangeRef.current = range;
+      schedulePoiLabelUpdate();
     };
     timeScale.subscribeVisibleTimeRangeChange(onVisibleTimeRangeChange);
+    const onPointerMove = (event: PointerEvent) => {
+      if (event.buttons > 0) schedulePoiLabelUpdate();
+    };
+    const onWheel = () => schedulePoiLabelUpdate();
+    hostRef.current.addEventListener('pointermove', onPointerMove);
+    hostRef.current.addEventListener('wheel', onWheel, { passive: true });
     const marketStructure = chart.addSeries(LineSeries, {
       color: '#20b887',
       lineStyle: LineStyle.Dashed,
@@ -241,11 +327,17 @@ export function ChartPanel({
       } else {
         chart.timeScale().fitContent();
       }
+      schedulePoiLabelUpdate();
     });
     resizeObserver.observe(hostRef.current);
 
     return () => {
       resizeObserver.disconnect();
+      hostRef.current?.removeEventListener('pointermove', onPointerMove);
+      hostRef.current?.removeEventListener('wheel', onWheel);
+      if (poiLabelUpdateFrame !== null) {
+        window.cancelAnimationFrame(poiLabelUpdateFrame);
+      }
       markersRef.current?.detach();
       markersRef.current = null;
       timeScale.unsubscribeVisibleTimeRangeChange(onVisibleTimeRangeChange);
@@ -297,11 +389,7 @@ export function ChartPanel({
     ));
     for (const poi of visiblePois) {
       const endTime = getPoiEndTime(poi, candlesData);
-      const color = poi.type === 'FVG'
-        ? 'rgba(139, 92, 246, 0.14)'
-        : poi.direction === 'BULLISH'
-          ? 'rgba(32, 184, 135, 0.14)'
-          : 'rgba(239, 98, 108, 0.14)';
+      const color = getPoiFillColor(poi);
       const lineColor = getPoiLineColor(poi);
       const series = chart.addSeries(BaselineSeries, {
         baseValue: { type: 'price', price: poi.low },
@@ -377,19 +465,17 @@ export function ChartPanel({
     poiSeriesRef.current = [];
 
     const tradePois = [
-      tradeOverlay.htf.poi,
-      tradeOverlay.ltf.poi,
-    ].flatMap((poi) => (
-      poi && (poi.type === 'FVG' ? showFVG : showOB) ? [poi] : []
+      { poi: tradeOverlay.htf.poi, isHtf: true },
+      { poi: tradeOverlay.ltf.poi, isHtf: false },
+    ].flatMap(({ poi, isHtf }) => (
+      poi && (poi.type === 'FVG' ? showFVG : showOB) ? [{ poi, isHtf }] : []
     ));
-    for (const poi of tradePois) {
+    for (const { poi, isHtf } of tradePois) {
       const endTime = getPoiEndTime(poi, candlesData);
-      const color = poi.type === 'FVG'
-        ? 'rgba(139, 92, 246, 0.14)'
-        : poi.direction === 'BULLISH'
-          ? 'rgba(32, 184, 135, 0.14)'
-          : 'rgba(239, 98, 108, 0.14)';
-      const lineColor = getPoiLineColor(poi);
+      const color = getPoiFillColor(poi, isHtf ? 0.06 : 0.14);
+      const lineColor = isHtf
+        ? getPoiLineColorWithOpacity(poi, 0.5)
+        : getPoiLineColor(poi);
       const series = chart.addSeries(BaselineSeries, {
         baseValue: { type: 'price', price: poi.low },
         topLineColor: lineColor,
@@ -410,6 +496,41 @@ export function ChartPanel({
       poiSeriesRef.current.push(series);
     }
   }, [candlesData, marketState, showFVG, showOB, tradeOverlay]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    const candles = candlesRef.current;
+    const chartHost = hostRef.current;
+    const labels = chart && candles && chartHost && tradeOverlay
+      ? [
+        { poi: tradeOverlay.htf.poi, timeframe: 'htf' as const },
+        { poi: tradeOverlay.ltf.poi, timeframe: 'ltf' as const },
+      ].flatMap(({ poi, timeframe }) => {
+        if (!poi || (poi.type === 'FVG' ? !showFVG : !showOB)) return [];
+        const label = getTradePoiLabel(
+          chart,
+          candles,
+          chartHost,
+          candlesData,
+          poi,
+          timeframe,
+        );
+        return label ? [label] : [];
+      })
+      : [];
+    setPoiLabels((current) => (
+      current.length === labels.length
+      && current.every((label, index) => (
+        label.timeframe === labels[index].timeframe
+        && label.text === labels[index].text
+        && label.color === labels[index].color
+        && label.left === labels[index].left
+        && label.top === labels[index].top
+      ))
+        ? current
+        : labels
+    ));
+  }, [candlesData, poiLabelRevision, showFVG, showOB, tradeOverlay]);
 
   useEffect(() => {
     candlesRef.current?.setData([]);
@@ -533,9 +654,9 @@ export function ChartPanel({
           }]
           : []),
         ...[
-          { poi: tradeOverlay.htf.poi, shape: 'square' as const, uppercase: true },
-          { poi: tradeOverlay.ltf.poi, shape: 'circle' as const, uppercase: false },
-        ].flatMap(({ poi, shape, uppercase }) => {
+          { poi: tradeOverlay.htf.poi, shape: 'square' as const, isHtf: true },
+          { poi: tradeOverlay.ltf.poi, shape: 'circle' as const, isHtf: false },
+        ].flatMap(({ poi, shape, isHtf }) => {
           if (!poi || (poi.type === 'FVG' ? !showFVG : !showOB)) return [];
 
           const label = poi.type === 'FVG' ? 'FVG' : 'OB';
@@ -544,9 +665,9 @@ export function ChartPanel({
             position: 'atPriceMiddle' as const,
             price: poi.high,
             shape,
-            color: getPoiLineColor(poi),
-            text: uppercase ? label : label.toLowerCase(),
-            size: 1,
+            color: isHtf ? getPoiLineColorWithOpacity(poi, 0.5) : getPoiLineColor(poi),
+            text: '',
+            size: isHtf ? 1.5 : 1,
           }];
         }),
       ]
@@ -578,6 +699,7 @@ export function ChartPanel({
       statusLabel={statusLabel}
       currentCandle={currentCandle}
       selectedCandle={selectedCandle}
+      poiLabels={poiLabels}
       onCloseCandleTooltip={() => setSelectedCandle(null)}
       toolbarContent={toolbarContent}
     />

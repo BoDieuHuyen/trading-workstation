@@ -20,6 +20,7 @@ export function ChartPanelView({
   onToggleExpanded,
   statusLabel,
   currentCandle,
+  poiLabels,
   selectedCandle,
   onCloseCandleTooltip,
   toolbarContent,
@@ -83,6 +84,20 @@ export function ChartPanelView({
 
       <div className="chart-canvas-wrap">
         <div className="chart-canvas" ref={chartHostRef} />
+        {poiLabels.map((label) => (
+          <span
+            key={label.timeframe}
+            className={`chart-poi-label chart-poi-label--${label.timeframe}`}
+            style={{
+              left: label.left,
+              top: label.top,
+              color: label.color,
+            }}
+            aria-hidden="true"
+          >
+            {label.text}
+          </span>
+        ))}
         <div className="chart-watermark">{SYSTEM_CONFIG.ui.chart.watermark}</div>
         {selectedCandle && (
           <aside
