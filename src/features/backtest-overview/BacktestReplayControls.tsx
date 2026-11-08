@@ -563,7 +563,7 @@ export function BacktestReplayControls({
             </div>
             {selectedTrade ? (
               <div className="backtest-replay__trade-grid">
-                <div className="backtest-replay__trade-metric">
+                <div className="backtest-replay__trade-metric backtest-replay__trade-metric--wide">
                   <span>{SYSTEM_CONFIG.ui.backtestReplay.setupLabel}</span>
                   <strong>#{selectedTrade.setup.number}</strong>
                 </div>

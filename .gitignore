@@ -1,7 +1,6 @@
 # Dependencies
 node_modules/
 
-backtest-results/
 # Build output
 dist/
 dist-ssr/
