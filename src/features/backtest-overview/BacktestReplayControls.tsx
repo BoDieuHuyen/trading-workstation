@@ -563,7 +563,7 @@ export function BacktestReplayControls({
             </div>
             {selectedTrade ? (
               <div className="backtest-replay__trade-grid">
-                <div className="backtest-replay__trade-metric backtest-replay__trade-metric--wide">
+                <div className="backtest-replay__trade-metric">
                   <span>{SYSTEM_CONFIG.ui.backtestReplay.setupLabel}</span>
                   <strong>#{selectedTrade.setup.number}</strong>
                 </div>
@@ -595,11 +595,11 @@ export function BacktestReplayControls({
                   <span>{SYSTEM_CONFIG.ui.backtestReplay.volumeLabel}</span>
                   <strong>{PRICE_FORMAT.format(selectedTrade.volume)}</strong>
                 </div>
-                <div className="backtest-replay__trade-metric backtest-replay__trade-metric--wide">
+                <div className="backtest-replay__trade-metric">
                   <span>{SYSTEM_CONFIG.ui.backtestReplay.entryTimeLabel}</span>
                   <strong>{formatTradeDate(selectedTrade.time, true)}</strong>
                 </div>
-                <div className="backtest-replay__trade-metric backtest-replay__trade-metric--wide">
+                <div className="backtest-replay__trade-metric">
                   <span>{SYSTEM_CONFIG.ui.backtestReplay.endTimeLabel}</span>
                   <strong>{formatTradeDate(selectedTrade.endTime, true)}</strong>
                 </div>

@@ -100,6 +100,8 @@ export interface BacktestTrade {
   exitPrice: number;
   stopLoss: number;
   pnl: number;
+  openingBalance: number;
+  closingBalance: number;
   volume: number;
   status: string;
   setup: {
@@ -175,6 +177,8 @@ interface RawBacktestTrade extends Record<string, unknown> {
   exit_price: number;
   stop_loss: number;
   pnl: number;
+  opening_balance: number;
+  closing_balance: number;
   volume: number;
   status: string;
   setup: {
@@ -275,6 +279,8 @@ function isBacktestTrade(value: unknown): value is RawBacktestTrade {
     && isFiniteNumber(value.stop_loss)
     && value.stop_loss > 0
     && isFiniteNumber(value.pnl)
+    && isFiniteNumber(value.opening_balance)
+    && isFiniteNumber(value.closing_balance)
     && isFiniteNumber(value.volume)
     && value.volume >= 0
     && typeof value.status === 'string'
@@ -503,6 +509,8 @@ function parseTrades(source: string): BacktestTrade[] {
     exitPrice: trade.exit_price,
     stopLoss: trade.stop_loss,
     pnl: trade.pnl,
+    openingBalance: trade.opening_balance,
+    closingBalance: trade.closing_balance,
     volume: trade.volume,
     status: trade.status,
     setup: {

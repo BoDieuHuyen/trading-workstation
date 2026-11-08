@@ -181,6 +181,19 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   const currentTradeTime = currentTradeEntry?.trade.ltf.marketStructure.time
     ?? currentMarketState?.marketStructure.time
     ?? null;
+  const initialBalance = trades[0]?.openingBalance ?? SYSTEM_CONFIG.backtest.initialBalance;
+  const currentBalanceTrade = currentTradeTime === null
+    ? null
+    : trades.reduce<BacktestTrade | null>((latestTrade, trade) => {
+      if (trade.ltf.marketStructure.time > Number(currentTradeTime)) return latestTrade;
+      if (
+        latestTrade === null
+        || trade.ltf.marketStructure.time > latestTrade.ltf.marketStructure.time
+      ) {
+        return trade;
+      }
+      return latestTrade;
+    }, null);
   const winningTrades = trades.filter((trade) => trade.pnl > 0).length;
   const losingTrades = trades.filter((trade) => trade.pnl < 0).length;
   const tradeSummary = {
@@ -191,12 +204,7 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
       ? (winningTrades / (winningTrades + losingTrades)) * 100
       : 0,
     totalPnl: trades.reduce((total, trade) => total + trade.pnl, 0),
-    currentBalance: SYSTEM_CONFIG.backtest.initialBalance
-      + (currentTradeTime === null
-        ? 0
-        : trades
-          .filter((trade) => trade.ltf.marketStructure.time <= Number(currentTradeTime))
-          .reduce((total, trade) => total + trade.pnl, 0)),
+    currentBalance: currentBalanceTrade?.closingBalance ?? initialBalance,
     startTime: trades.length > 0
       ? Math.min(...trades.map((trade) => trade.time))
       : null,

@@ -1,4 +1,4 @@
-generated_at="2026-11-08 05:54:57";
+generated_at="2026-11-08 10:01:42";
 const symbol = 'ETH-USDT';
 const timeframe = '5m';
 const path = './data/';
