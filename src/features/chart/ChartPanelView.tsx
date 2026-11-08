@@ -66,6 +66,15 @@ export function ChartPanelView({
           <button className="icon-button" title={SYSTEM_CONFIG.ui.chart.settingsTitle}><Settings2 size={15} /></button>
           <button className="icon-button" title={SYSTEM_CONFIG.ui.chart.screenshotTitle}><Camera size={15} /></button>
           <button className="icon-button" title={SYSTEM_CONFIG.ui.chart.moreTitle}><MoreHorizontal size={16} /></button>
+          <button
+            className="icon-button expand-chart"
+            title={expanded ? SYSTEM_CONFIG.ui.chart.restoreTitle : SYSTEM_CONFIG.ui.chart.expandTitle}
+            aria-label={expanded ? SYSTEM_CONFIG.ui.chart.restoreTitle : SYSTEM_CONFIG.ui.chart.expandTitle}
+            aria-expanded={expanded}
+            onClick={onToggleExpanded}
+          >
+            {expanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+          </button>
         </div>
       </header>
 
@@ -153,15 +162,6 @@ export function ChartPanelView({
         <span>{SYSTEM_CONFIG.ui.chart.high} <b className="positive">{currentCandle?.high ?? '--'}</b></span>
         <span>{SYSTEM_CONFIG.ui.chart.low} <b className="negative">{currentCandle?.low ?? '--'}</b></span>
         <span>{SYSTEM_CONFIG.ui.chart.close} <b>{currentCandle?.close ?? '--'}</b></span>
-        <button
-          className="expand-chart"
-          title={expanded ? SYSTEM_CONFIG.ui.chart.restoreTitle : SYSTEM_CONFIG.ui.chart.expandTitle}
-          aria-label={expanded ? SYSTEM_CONFIG.ui.chart.restoreTitle : SYSTEM_CONFIG.ui.chart.expandTitle}
-          aria-expanded={expanded}
-          onClick={onToggleExpanded}
-        >
-          {expanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-        </button>
       </footer>
     </section>
   );
