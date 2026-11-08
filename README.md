@@ -13,6 +13,13 @@ npm run dev
 ```
 Open the URL printed by Vite (usually http://localhost:5173).
 
+## Run in a Dev Container
+1. Open the project in VS Code with the Dev Containers extension installed.
+2. Run **Dev Containers: Reopen in Container**. The container installs dependencies with `npm ci`.
+3. Start the development server with `npm run dev -- --host 0.0.0.0`.
+
+Port 5173 is forwarded automatically. Container dependencies use a separate volume so host-installed `node_modules` are not reused.
+
 ## Build
 ```bash
 npm run build

@@ -1,0 +1,16 @@
+{
+  "name": "Trading Workstation",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "remoteUser": "node",
+  "mounts": [
+    "source=${devcontainerId}-node_modules,target=${containerWorkspaceFolder}/node_modules,type=volume"
+  ],
+  "postCreateCommand": "npm ci",
+  "forwardPorts": [5173],
+  "portsAttributes": {
+    "5173": {
+      "label": "Vite development server",
+      "onAutoForward": "openBrowser"
+    }
+  }
+}
