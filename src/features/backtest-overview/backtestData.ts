@@ -13,6 +13,7 @@ import ltfCandlesUrl from '../../backtest-results/data/ltf_candles.js?url';
 import ltfMarketStatesUrl from '../../backtest-results/data/ltf_market_states.js?url';
 import ltfSwingsUrl from '../../backtest-results/data/ltf_swings.js?url';
 import setupDataUrl from '../../backtest-results/data/setup_data.js?url';
+import tradeDataUrl from '../../backtest-results/data/trade_data.js?url';
 import type { CandleData } from '../chart/candle.types';
 import type { MarketStateOverlay } from '../chart/marketState.types';
 
@@ -90,6 +91,102 @@ interface BacktestSetup {
   time: number;
 }
 
+export interface BacktestTrade {
+  number: number;
+  time: number;
+  endTime: number;
+  side: 'LONG' | 'SHORT';
+  entryPrice: number;
+  exitPrice: number;
+  stopLoss: number;
+  pnl: number;
+  volume: number;
+  status: string;
+  setup: {
+    id: string;
+    number: number;
+  };
+  htf: {
+    marketStructure: BacktestTradeMarketStructure;
+    poi: BacktestTradePoi | null;
+  };
+  ltf: {
+    marketStructure: BacktestTradeMarketStructure;
+    poi: BacktestTradePoi | null;
+    sweep: BacktestTradeSweep | null;
+  };
+}
+
+export interface BacktestTradeMarketStructure {
+  time: number;
+  event: 'bos' | 'choch';
+  bias: 'BULLISH' | 'BEARISH';
+  score: number;
+}
+
+export interface BacktestTradePoi {
+  time: number;
+  endTime: number | null;
+  high: number;
+  low: number;
+  score: number;
+  type: 1 | 2;
+  direction: 'BULLISH' | 'BEARISH';
+}
+
+export interface BacktestTradeSweep {
+  time: number;
+  direction: 'BULLISH' | 'BEARISH';
+}
+
+interface RawBacktestTradeMarketStructure extends Record<string, unknown> {
+  time: number;
+  event: 'bos' | 'choch';
+  bias: 'BULLISH' | 'BEARISH';
+  score: number;
+}
+
+interface RawBacktestTradePoi extends Record<string, unknown> {
+  time: number;
+  end_time: number | null;
+  high: number;
+  low: number;
+  score: number;
+  type: 1 | 2;
+  direction: 'BULLISH' | 'BEARISH';
+}
+
+interface RawBacktestTradeSweep extends Record<string, unknown> {
+  time: number;
+  direction: 'BULLISH' | 'BEARISH';
+}
+
+interface RawBacktestTradeTimeframe extends Record<string, unknown> {
+  market_structure: RawBacktestTradeMarketStructure;
+  poi: RawBacktestTradePoi | null;
+}
+
+interface RawBacktestTrade extends Record<string, unknown> {
+  number: number;
+  time: number;
+  end_time: number;
+  side: 'LONG' | 'SHORT';
+  entry_price: number;
+  exit_price: number;
+  stop_loss: number;
+  pnl: number;
+  volume: number;
+  status: string;
+  setup: {
+    id: string;
+    number: number;
+  };
+  htf: RawBacktestTradeTimeframe;
+  ltf: RawBacktestTradeTimeframe & {
+    sweep: RawBacktestTradeSweep | null;
+  };
+}
+
 export type BacktestMarketState = MarketStateOverlay;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -105,6 +202,88 @@ function isBacktestSetup(value: unknown): value is BacktestSetup {
     && isFiniteNumber(value.time)
     && Number.isSafeInteger(value.time)
     && value.time > 0;
+}
+
+function isBacktestTradeMarketStructure(
+  value: unknown,
+): value is RawBacktestTradeMarketStructure {
+  return isRecord(value)
+    && isFiniteNumber(value.time)
+    && Number.isSafeInteger(value.time)
+    && value.time > 0
+    && (value.event === 'bos' || value.event === 'choch')
+    && (value.bias === 'BULLISH' || value.bias === 'BEARISH')
+    && isFiniteNumber(value.score);
+}
+
+function isBacktestTradePoi(value: unknown): value is RawBacktestTradePoi | null {
+  if (value === null) return true;
+  if (!isRecord(value)) return false;
+
+  return isFiniteNumber(value.time)
+    && Number.isSafeInteger(value.time)
+    && value.time > 0
+    && (value.end_time === null || (
+      isFiniteNumber(value.end_time)
+      && Number.isSafeInteger(value.end_time)
+      && value.end_time >= value.time
+    ))
+    && isFiniteNumber(value.high)
+    && isFiniteNumber(value.low)
+    && value.high > value.low
+    && isFiniteNumber(value.score)
+    && (value.type === 1 || value.type === 2)
+    && (value.direction === 'BULLISH' || value.direction === 'BEARISH');
+}
+
+function isBacktestTradeSweep(value: unknown): value is RawBacktestTradeSweep | null {
+  return value === null || (
+    isRecord(value)
+    && isFiniteNumber(value.time)
+    && Number.isSafeInteger(value.time)
+    && value.time > 0
+    && (value.direction === 'BULLISH' || value.direction === 'BEARISH')
+  );
+}
+
+function isBacktestTradeTimeframe(value: unknown): value is RawBacktestTradeTimeframe {
+  return isRecord(value)
+    && isBacktestTradeMarketStructure(value.market_structure)
+    && isBacktestTradePoi(value.poi);
+}
+
+function isBacktestTrade(value: unknown): value is RawBacktestTrade {
+  return isRecord(value)
+    && isRecord(value.setup)
+    && isBacktestTradeTimeframe(value.htf)
+    && isBacktestTradeTimeframe(value.ltf)
+    && isBacktestTradeSweep(value.ltf.sweep)
+    && isFiniteNumber(value.number)
+    && Number.isSafeInteger(value.number)
+    && value.number > 0
+    && isFiniteNumber(value.time)
+    && Number.isSafeInteger(value.time)
+    && value.time > 0
+    && isFiniteNumber(value.end_time)
+    && Number.isSafeInteger(value.end_time)
+    && value.end_time >= value.time
+    && (value.side === 'LONG' || value.side === 'SHORT')
+    && isFiniteNumber(value.entry_price)
+    && value.entry_price > 0
+    && isFiniteNumber(value.exit_price)
+    && value.exit_price > 0
+    && isFiniteNumber(value.stop_loss)
+    && value.stop_loss > 0
+    && isFiniteNumber(value.pnl)
+    && isFiniteNumber(value.volume)
+    && value.volume >= 0
+    && typeof value.status === 'string'
+    && value.status.length > 0
+    && typeof value.setup.id === 'string'
+    && value.setup.id.length > 0
+    && isFiniteNumber(value.setup.number)
+    && Number.isSafeInteger(value.setup.number)
+    && value.setup.number > 0;
 }
 
 function isBacktestCandle(value: unknown): value is BacktestCandle {
@@ -300,6 +479,77 @@ function parseSetupTimes(source: string): Set<number> {
   return new Set(parsed.map((setup: BacktestSetup) => setup.time));
 }
 
+function parseTrades(source: string): BacktestTrade[] {
+  const assignmentIndex = source.indexOf('const trades=');
+  const arrayStart = source.indexOf('[', assignmentIndex);
+  const arrayEnd = source.lastIndexOf(']');
+  if (assignmentIndex < 0 || arrayStart < 0 || arrayEnd <= arrayStart) {
+    throw new Error('Backtest trade data has an invalid format.');
+  }
+
+  const parsed: unknown = JSON.parse(
+    source.slice(arrayStart, arrayEnd + 1).replace(/,\s*([}\]])/g, '$1'),
+  );
+  if (!Array.isArray(parsed) || parsed.length === 0 || !parsed.every(isBacktestTrade)) {
+    throw new Error('Backtest trade data is empty or contains invalid trades.');
+  }
+
+  return parsed.map((trade) => ({
+    number: trade.number,
+    time: trade.time,
+    endTime: trade.end_time,
+    side: trade.side,
+    entryPrice: trade.entry_price,
+    exitPrice: trade.exit_price,
+    stopLoss: trade.stop_loss,
+    pnl: trade.pnl,
+    volume: trade.volume,
+    status: trade.status,
+    setup: {
+      id: trade.setup.id,
+      number: trade.setup.number,
+    },
+    htf: {
+      marketStructure: {
+        time: trade.htf.market_structure.time,
+        event: trade.htf.market_structure.event,
+        bias: trade.htf.market_structure.bias,
+        score: trade.htf.market_structure.score,
+      },
+      poi: trade.htf.poi === null ? null : {
+        time: trade.htf.poi.time,
+        endTime: trade.htf.poi.end_time,
+        high: trade.htf.poi.high,
+        low: trade.htf.poi.low,
+        score: trade.htf.poi.score,
+        type: trade.htf.poi.type,
+        direction: trade.htf.poi.direction,
+      },
+    },
+    ltf: {
+      marketStructure: {
+        time: trade.ltf.market_structure.time,
+        event: trade.ltf.market_structure.event,
+        bias: trade.ltf.market_structure.bias,
+        score: trade.ltf.market_structure.score,
+      },
+      poi: trade.ltf.poi === null ? null : {
+        time: trade.ltf.poi.time,
+        endTime: trade.ltf.poi.end_time,
+        high: trade.ltf.poi.high,
+        low: trade.ltf.poi.low,
+        score: trade.ltf.poi.score,
+        type: trade.ltf.poi.type,
+        direction: trade.ltf.poi.direction,
+      },
+      sweep: trade.ltf.sweep === null ? null : {
+        time: trade.ltf.sweep.time,
+        direction: trade.ltf.sweep.direction,
+      },
+    },
+  }));
+}
+
 export async function loadBacktestCandles(
   timeframeMode: TimeframeMode,
 ): Promise<CandlestickData<Time>[]> {
@@ -346,6 +596,15 @@ export async function loadBacktestSetupTimes(): Promise<Set<number>> {
   }
 
   return parseSetupTimes(await response.text());
+}
+
+export async function loadBacktestTrades(): Promise<BacktestTrade[]> {
+  const response = await fetch(tradeDataUrl);
+  if (!response.ok) {
+    throw new Error(`Could not load backtest trade data (${response.status}).`);
+  }
+
+  return parseTrades(await response.text());
 }
 
 export async function loadBacktestSwings(

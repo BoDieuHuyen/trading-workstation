@@ -23,3 +23,31 @@ export interface MarketStateOverlay {
     direction: 'BULLISH' | 'BEARISH';
   }[];
 }
+
+export interface TradeChartOverlay {
+  tradeNumber: number;
+  trade: {
+    entry: {
+      time: Time;
+      price: number;
+    };
+    exit: {
+      time: Time;
+      price: number;
+      stopLoss: number;
+      type: 'TP' | 'SL';
+    };
+  };
+  htf: {
+    marketStructure: MarketStateOverlay['marketStructure'];
+    poi: MarketStateOverlay['pois'][number] | null;
+  };
+  ltf: {
+    marketStructure: MarketStateOverlay['marketStructure'];
+    poi: MarketStateOverlay['pois'][number] | null;
+    sweep: {
+      time: Time;
+      direction: 'BULLISH' | 'BEARISH';
+    } | null;
+  };
+}

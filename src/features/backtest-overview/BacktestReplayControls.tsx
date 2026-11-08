@@ -1,4 +1,5 @@
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Pause,
@@ -7,31 +8,104 @@ import {
   SkipBack,
   SkipForward,
 } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { SYSTEM_CONFIG } from '../../config/system';
 import { useWorkspaceStore } from '../../stores/workspaceStore';
+import type { BacktestTrade } from './backtestData';
 
 const REPLAY_SPEEDS = [1, 2, 5, 10] as const;
+const PRICE_FORMAT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 });
+const USDT_FORMAT = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const TRADE_DATE_FORMAT = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+const TRADE_DATE_TIME_FORMAT = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'UTC',
+});
 
 interface BacktestReplayControlsProps {
   marketStructureNumber: number | null;
   marketStructureCount: number;
+  tradeProgressNumber: number | null;
+  tradeCount: number;
   marketStructureNumbers: number[];
+  marketStructureTimes: number[];
+  tradeSearchTargets: { number: number; marketStructureTime: number }[];
   quickFilter: 'all' | 'setup';
   onQuickFilterChange: (filter: 'all' | 'setup') => void;
   showSetupFilter: boolean;
+  setupOptions: { id: string; number: number }[];
+  selectedSetupId: string;
+  onSelectedSetupChange: (setupId: string) => void;
+  showTradeControls: boolean;
+  tradeFilterActive: boolean;
+  onTradeFilterChange: (active: boolean) => void;
+  tradeSummary: {
+    count: number;
+    totalPnl: number;
+    currentBalance: number;
+    startTime: number | null;
+    endTime: number | null;
+  };
+  selectedTrade: BacktestTrade | null;
+  selectedTradeExitType: 'TP' | 'SL' | null;
+}
+
+function formatPrice(value: number): string {
+  return PRICE_FORMAT.format(value);
+}
+
+function formatUsdt(value: number): string {
+  return `${USDT_FORMAT.format(value)} USDT`;
+}
+
+function formatSignedUsdt(value: number): string {
+  return `${value > 0 ? '+' : ''}${formatUsdt(value)}`;
+}
+
+function formatTradeDate(value: number, includeTime = false): string {
+  const formatter = includeTime ? TRADE_DATE_TIME_FORMAT : TRADE_DATE_FORMAT;
+  return formatter.format(new Date(value * 1000));
 }
 
 export function BacktestReplayControls({
   marketStructureNumber,
   marketStructureCount,
+  tradeProgressNumber,
+  tradeCount,
   marketStructureNumbers,
+  marketStructureTimes,
+  tradeSearchTargets,
   quickFilter,
   onQuickFilterChange,
   showSetupFilter,
+  setupOptions,
+  selectedSetupId,
+  onSelectedSetupChange,
+  showTradeControls,
+  tradeFilterActive,
+  onTradeFilterChange,
+  tradeSummary,
+  selectedTrade,
+  selectedTradeExitType,
 }: BacktestReplayControlsProps) {
   const [searchValue, setSearchValue] = useState('');
   const [searchError, setSearchError] = useState('');
+  const [setupDropdownOpen, setSetupDropdownOpen] = useState(false);
+  const setupDropdownRef = useRef<HTMLDivElement>(null);
+  const setupTriggerRef = useRef<HTMLButtonElement>(null);
+  const setupOptionsRef = useRef<HTMLDivElement>(null);
   const timeframe = useWorkspaceStore((state) => state.backtestTimeframe);
   const replayIndex = useWorkspaceStore((state) => state.replayIndex);
   const replayLastIndex = useWorkspaceStore((state) => state.replayLastIndex);
@@ -46,14 +120,93 @@ export function BacktestReplayControls({
   const setAutoReplay = useWorkspaceStore((state) => state.setAutoReplay);
   const setReplaySpeed = useWorkspaceStore((state) => state.setReplaySpeed);
   const hasReplayData = replayLastIndex >= 0;
-  const progressMaximum = Math.max(marketStructureCount, 1);
-  const progressValue = Math.min(marketStructureNumber ?? 0, progressMaximum);
-  const progressPercent = marketStructureNumber === null
+  const isTradeSource = showTradeControls && tradeFilterActive;
+  const progressMaximum = Math.max(isTradeSource ? tradeCount : marketStructureCount, 1);
+  const progressCurrent = isTradeSource ? tradeProgressNumber : marketStructureNumber;
+  const progressValue = Math.min(progressCurrent ?? 0, progressMaximum);
+  const progressPercent = progressCurrent === null
     ? 0
     : (progressValue / progressMaximum) * 100;
 
+  useEffect(() => {
+    if (!setupDropdownOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !setupDropdownRef.current?.contains(event.target)) {
+        setSetupDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [setupDropdownOpen]);
+
+  useEffect(() => {
+    if (!tradeFilterActive) setSetupDropdownOpen(false);
+  }, [tradeFilterActive]);
+
+  useEffect(() => {
+    if (setupDropdownOpen) {
+      setupOptionsRef.current
+        ?.querySelector<HTMLButtonElement>('[aria-selected="true"]')
+        ?.focus();
+    }
+  }, [setupDropdownOpen]);
+
+  const moveSetupFocus = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    direction: 'next' | 'previous' | 'first' | 'last',
+  ) => {
+    const options = Array.from(
+      setupOptionsRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [],
+    );
+    if (options.length === 0) return;
+
+    const currentIndex = options.findIndex((option) => option === document.activeElement);
+    const nextIndex = direction === 'first'
+      ? 0
+      : direction === 'last'
+        ? options.length - 1
+        : (currentIndex + (direction === 'next' ? 1 : -1) + options.length) % options.length;
+    event.preventDefault();
+    options[nextIndex].focus();
+  };
+
+  const handleSetupOptionKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'ArrowDown') moveSetupFocus(event, 'next');
+    if (event.key === 'ArrowUp') moveSetupFocus(event, 'previous');
+    if (event.key === 'Home') moveSetupFocus(event, 'first');
+    if (event.key === 'End') moveSetupFocus(event, 'last');
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setSetupDropdownOpen(false);
+      setupTriggerRef.current?.focus();
+    }
+  };
+
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isTradeSource) {
+      const tradeNumber = Number(searchValue.trim());
+      if (!/^\d+$/.test(searchValue.trim()) || !Number.isSafeInteger(tradeNumber)) {
+        setSearchError(SYSTEM_CONFIG.ui.backtestReplay.invalidTradeNumber);
+        return;
+      }
+
+      const trade = tradeSearchTargets.find((target) => target.number === tradeNumber);
+      const index = trade
+        ? marketStructureTimes.indexOf(trade.marketStructureTime)
+        : -1;
+      if (index < 0) {
+        setSearchError(SYSTEM_CONFIG.ui.backtestReplay.tradeNotFound);
+        return;
+      }
+
+      setReplayIndex(index);
+      setSearchError('');
+      return;
+    }
+
     const number = Number(searchValue);
     if (!searchValue.trim() || !Number.isInteger(number)) {
       setSearchError(SYSTEM_CONFIG.ui.backtestReplay.invalidNumber);
@@ -96,29 +249,128 @@ export function BacktestReplayControls({
 
       <div className="backtest-replay__search-field">
         <label className="backtest-replay__search-label" htmlFor="backtest-replay-search">
-          {SYSTEM_CONFIG.ui.backtestReplay.searchLabel}
+          {showTradeControls
+            ? SYSTEM_CONFIG.ui.backtestReplay.tradeSearchLabel
+            : SYSTEM_CONFIG.ui.backtestReplay.searchLabel}
         </label>
         <form className="backtest-replay__search" onSubmit={handleSearch}>
           <input
             id="backtest-replay-search"
-            type="number"
-            step="1"
+            type={showTradeControls ? 'text' : 'number'}
+            inputMode={showTradeControls ? 'numeric' : undefined}
+            step={showTradeControls ? undefined : '1'}
             value={searchValue}
-            aria-label={SYSTEM_CONFIG.ui.backtestReplay.searchAriaLabel}
+            aria-label=            {showTradeControls
+              ? SYSTEM_CONFIG.ui.backtestReplay.tradeSearchAriaLabel
+              : SYSTEM_CONFIG.ui.backtestReplay.searchAriaLabel}
             aria-invalid={Boolean(searchError)}
             aria-describedby={searchError ? 'backtest-replay-search-error' : undefined}
-            placeholder={SYSTEM_CONFIG.ui.backtestReplay.searchPlaceholder}
+            placeholder={showTradeControls
+              ? SYSTEM_CONFIG.ui.backtestReplay.tradeSearchPlaceholder
+              : SYSTEM_CONFIG.ui.backtestReplay.searchPlaceholder}
             disabled={!hasReplayData}
             onChange={(event) => {
               setSearchValue(event.target.value);
               setSearchError('');
             }}
           />
-          <button type="submit" aria-label={SYSTEM_CONFIG.ui.backtestReplay.searchAriaLabel} title={SYSTEM_CONFIG.ui.backtestReplay.searchAriaLabel} disabled={!hasReplayData || !searchValue.trim()}>
+          <button
+            type="submit"
+            aria-label={showTradeControls
+              ? SYSTEM_CONFIG.ui.backtestReplay.tradeSearchAriaLabel
+              : SYSTEM_CONFIG.ui.backtestReplay.searchAriaLabel}
+            title={showTradeControls
+              ? SYSTEM_CONFIG.ui.backtestReplay.tradeSearchAriaLabel
+              : SYSTEM_CONFIG.ui.backtestReplay.searchAriaLabel}
+            disabled={!hasReplayData || !searchValue.trim()}
+          >
             <Search size={13} />
           </button>
         </form>
       </div>
+      {showTradeControls && (
+        <div
+          className="backtest-replay__setup-select"
+          ref={setupDropdownRef}
+          onBlur={(event) => {
+            if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) {
+              setSetupDropdownOpen(false);
+            }
+          }}
+        >
+          <span className="backtest-replay__search-label" id="backtest-replay-setup-label">
+            {SYSTEM_CONFIG.ui.backtestReplay.setupSelectLabel}
+          </span>
+          <button
+            ref={setupTriggerRef}
+            id="backtest-replay-setup"
+            className="backtest-replay__setup-trigger"
+            type="button"
+            role="combobox"
+            aria-labelledby="backtest-replay-setup-label backtest-replay-setup-value"
+            aria-haspopup="listbox"
+            aria-controls="backtest-replay-setup-options"
+            aria-expanded={setupDropdownOpen}
+            disabled={!hasReplayData || !tradeFilterActive}
+            onClick={() => setSetupDropdownOpen(!setupDropdownOpen)}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                setSetupDropdownOpen(true);
+              }
+              if (event.key === 'Escape') setSetupDropdownOpen(false);
+            }}
+          >
+            <span id="backtest-replay-setup-value">
+              {selectedSetupId
+                ? `${SYSTEM_CONFIG.ui.backtestReplay.quickFilterSetupLabel} #${setupOptions.find((setup) => setup.id === selectedSetupId)?.number ?? ''}`
+                : SYSTEM_CONFIG.ui.backtestReplay.allSetupsLabel}
+            </span>
+            <ChevronDown size={13} aria-hidden="true" />
+          </button>
+          {setupDropdownOpen && (
+            <div
+              id="backtest-replay-setup-options"
+              className="backtest-replay__setup-options"
+              role="listbox"
+              aria-labelledby="backtest-replay-setup-label"
+              ref={setupOptionsRef}
+            >
+              <button
+                type="button"
+                role="option"
+                aria-selected={!selectedSetupId}
+                className={!selectedSetupId ? 'backtest-replay__setup-option backtest-replay__setup-option--active' : 'backtest-replay__setup-option'}
+                onClick={() => {
+                  onSelectedSetupChange('');
+                  setSetupDropdownOpen(false);
+                  setupTriggerRef.current?.focus();
+                }}
+                onKeyDown={handleSetupOptionKeyDown}
+              >
+                {SYSTEM_CONFIG.ui.backtestReplay.allSetupsLabel}
+              </button>
+              {setupOptions.map((setup) => (
+                <button
+                  key={setup.id}
+                  type="button"
+                  role="option"
+                  aria-selected={setup.id === selectedSetupId}
+                  className={setup.id === selectedSetupId ? 'backtest-replay__setup-option backtest-replay__setup-option--active' : 'backtest-replay__setup-option'}
+                  onClick={() => {
+                    onSelectedSetupChange(setup.id);
+                    setSetupDropdownOpen(false);
+                    setupTriggerRef.current?.focus();
+                  }}
+                  onKeyDown={handleSetupOptionKeyDown}
+                >
+                  {SYSTEM_CONFIG.ui.backtestReplay.quickFilterSetupLabel} #{setup.number}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <div className="backtest-replay__quick-filters">
         <span className="backtest-replay__quick-filters-label">
           {SYSTEM_CONFIG.ui.backtestReplay.quickFiltersLabel}
@@ -126,9 +378,18 @@ export function BacktestReplayControls({
         <div className={`backtest-replay__quick-filters-options${showSetupFilter ? ' backtest-replay__quick-filters-options--compact' : ''}`} role="group" aria-label={SYSTEM_CONFIG.ui.backtestReplay.quickFiltersLabel}>
           <button
             type="button"
-            className={quickFilter === 'all' ? 'backtest-replay__quick-filter backtest-replay__quick-filter--active' : 'backtest-replay__quick-filter'}
-            aria-pressed={quickFilter === 'all'}
-            onClick={() => onQuickFilterChange('all')}
+            className={(showTradeControls ? !tradeFilterActive : quickFilter === 'all')
+              ? 'backtest-replay__quick-filter backtest-replay__quick-filter--active'
+              : 'backtest-replay__quick-filter'}
+            aria-pressed={showTradeControls ? !tradeFilterActive : quickFilter === 'all'}
+            onClick={() => {
+              if (showTradeControls) {
+                onTradeFilterChange(false);
+                onSelectedSetupChange('');
+                return;
+              }
+              onQuickFilterChange('all');
+            }}
           >
             {SYSTEM_CONFIG.ui.backtestReplay.quickFilterAllLabel}
           </button>
@@ -142,27 +403,41 @@ export function BacktestReplayControls({
               {SYSTEM_CONFIG.ui.backtestReplay.quickFilterSetupLabel}
             </button>
           )}
+          {showTradeControls && (
+            <button
+              type="button"
+              className={tradeFilterActive ? 'backtest-replay__quick-filter backtest-replay__quick-filter--active' : 'backtest-replay__quick-filter'}
+              aria-pressed={tradeFilterActive}
+              onClick={() => onTradeFilterChange(!tradeFilterActive)}
+            >
+              {SYSTEM_CONFIG.ui.backtestReplay.quickFilterTradeLabel}
+            </button>
+          )}
         </div>
       </div>
       {searchError && <span className="backtest-replay__search-error" id="backtest-replay-search-error" role="alert">{searchError}</span>}
 
       <div className="backtest-replay__progress">
         <div className="backtest-replay__progress-heading">
-          <span>MARKET STRUCTURE</span>
+          <span>{isTradeSource ? 'TRADE' : 'MARKET STRUCTURE'}</span>
           <span className="backtest-replay__progress-count">
-            {marketStructureNumber === null ? '--' : marketStructureNumber} / {marketStructureCount || '--'}
+            {progressCurrent === null ? '--' : progressCurrent} / {(isTradeSource ? tradeCount : marketStructureCount) || '--'}
           </span>
         </div>
         <div
           className="backtest-replay__progress-track"
           role="progressbar"
-          aria-label="Market structure progress"
+          aria-label={isTradeSource ? 'Trade progress' : 'Market structure progress'}
           aria-valuemin={0}
           aria-valuemax={progressMaximum}
           aria-valuenow={progressValue}
-          aria-valuetext={marketStructureNumber === null
-            ? `No market structure selected; ${marketStructureCount} total`
-            : `Market structure ${marketStructureNumber} of ${marketStructureCount}`}
+          aria-valuetext={progressCurrent === null
+            ? isTradeSource
+              ? `No trade selected; ${tradeCount} total`
+              : `No market structure selected; ${marketStructureCount} total`
+            : isTradeSource
+              ? `Trade ${progressCurrent} of ${tradeCount}`
+              : `Market structure ${progressCurrent} of ${marketStructureCount}`}
         >
           <span style={{ width: `${progressPercent}%` }} />
         </div>
@@ -223,6 +498,99 @@ export function BacktestReplayControls({
           ))}
         </div>
       </div>
+
+      {isTradeSource && (
+        <section className="backtest-replay__trade-info" aria-label={SYSTEM_CONFIG.ui.backtestReplay.tradeDetailsTitle}>
+          <div className="backtest-replay__trade-card">
+            <h3 className="backtest-replay__trade-card-title">
+              {SYSTEM_CONFIG.ui.backtestReplay.tradeSummaryTitle}
+            </h3>
+            <div className="backtest-replay__trade-grid">
+              <div className="backtest-replay__trade-metric">
+                <span>{SYSTEM_CONFIG.ui.backtestReplay.tradeCountLabel}</span>
+                <strong>{tradeSummary.count}</strong>
+              </div>
+              <div className="backtest-replay__trade-metric">
+                <span>{SYSTEM_CONFIG.ui.backtestReplay.totalPnlLabel}</span>
+                <strong className={tradeSummary.totalPnl < 0 ? 'negative' : 'positive'}>
+                  {formatSignedUsdt(tradeSummary.totalPnl)}
+                </strong>
+              </div>
+              <div className="backtest-replay__trade-metric">
+                <span>{SYSTEM_CONFIG.ui.backtestReplay.currentBalanceLabel}</span>
+                <strong>{formatUsdt(tradeSummary.currentBalance)}</strong>
+              </div>
+              <div className="backtest-replay__trade-metric backtest-replay__trade-metric--wide">
+                <span>{SYSTEM_CONFIG.ui.backtestReplay.backtestPeriodLabel}</span>
+                <strong>
+                  {tradeSummary.startTime !== null && tradeSummary.endTime !== null
+                    ? `${formatTradeDate(tradeSummary.startTime)} – ${formatTradeDate(tradeSummary.endTime)}`
+                    : '--'}
+                </strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="backtest-replay__trade-card">
+            <div className="backtest-replay__trade-card-heading">
+              <h3 className="backtest-replay__trade-card-title">
+                {SYSTEM_CONFIG.ui.backtestReplay.tradeDetailsTitle}
+              </h3>
+              {selectedTrade && (
+                <strong>#{selectedTrade.number} · {selectedTrade.side}</strong>
+              )}
+            </div>
+            {selectedTrade ? (
+              <div className="backtest-replay__trade-grid">
+                <div className="backtest-replay__trade-metric">
+                  <span>{SYSTEM_CONFIG.ui.backtestReplay.setupLabel}</span>
+                  <strong>#{selectedTrade.setup.number}</strong>
+                </div>
+                <div className="backtest-replay__trade-metric">
+                  <span>{SYSTEM_CONFIG.ui.backtestReplay.entryLabel}</span>
+                  <strong>{formatPrice(selectedTrade.entryPrice)}</strong>
+                </div>
+                <div className="backtest-replay__trade-metric">
+                  <span>{SYSTEM_CONFIG.ui.backtestReplay.stopLossLabel}</span>
+                  <strong>{formatPrice(selectedTrade.stopLoss)}</strong>
+                </div>
+                <div className="backtest-replay__trade-metric">
+                  <span>{selectedTradeExitType ?? SYSTEM_CONFIG.ui.backtestReplay.exitLabel}</span>
+                  <strong>
+                    {formatPrice(
+                      selectedTradeExitType === 'SL'
+                        ? selectedTrade.stopLoss
+                        : selectedTrade.exitPrice,
+                    )}
+                  </strong>
+                </div>
+                <div className="backtest-replay__trade-metric">
+                  <span>{SYSTEM_CONFIG.ui.backtestReplay.pnlLabel}</span>
+                  <strong className={selectedTrade.pnl < 0 ? 'negative' : 'positive'}>
+                    {formatSignedUsdt(selectedTrade.pnl)}
+                  </strong>
+                </div>
+                <div className="backtest-replay__trade-metric">
+                  <span>{SYSTEM_CONFIG.ui.backtestReplay.volumeLabel}</span>
+                  <strong>{PRICE_FORMAT.format(selectedTrade.volume)}</strong>
+                </div>
+                <div className="backtest-replay__trade-metric backtest-replay__trade-metric--wide">
+                  <span>{SYSTEM_CONFIG.ui.backtestReplay.entryTimeLabel}</span>
+                  <strong>{formatTradeDate(selectedTrade.time, true)}</strong>
+                </div>
+                <div className="backtest-replay__trade-metric backtest-replay__trade-metric--wide">
+                  <span>{SYSTEM_CONFIG.ui.backtestReplay.endTimeLabel}</span>
+                  <strong>{formatTradeDate(selectedTrade.endTime, true)}</strong>
+                </div>
+              </div>
+            ) : (
+              <p className="backtest-replay__trade-empty">
+                {SYSTEM_CONFIG.ui.backtestReplay.noTradeSelected}
+              </p>
+            )}
+          </div>
+        </section>
+      )}
     </section>
   );
 }
