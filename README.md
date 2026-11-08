@@ -51,6 +51,7 @@ Open http://localhost:8080. To use another host port, set `APP_PORT` (for exampl
 - Draggable chart divider
 - Resizable / collapsible bottom panel
 - Bottom tabs: Events, Trades, Signals, Logs
+- LTF backtest replay can be filtered by inclusive candle-time range using millisecond timestamps.
 - Zustand workspace state
 - Workspace preferences (mode, backtest timeframe, symbol, layout, selected setup, and separate HTF/LTF search numbers) are saved in browser storage and restored on reload.
 

@@ -17,6 +17,8 @@ interface WorkspaceState {
   selectedSetupId: string;
   backtestHtfSearchValue: string;
   backtestLtfSearchValue: string;
+  backtestTimeRangeFrom: string;
+  backtestTimeRangeTo: string;
   replayIndex: number;
   replayLastIndex: number;
   replayPlaying: boolean;
@@ -30,6 +32,7 @@ interface WorkspaceState {
   setBacktestTimeframe: (timeframe: BacktestTimeframe) => void;
   setSelectedSetupId: (setupId: string) => void;
   setBacktestSearchValue: (timeframe: BacktestTimeframe, value: string) => void;
+  setBacktestTimeRange: (range: Partial<Pick<WorkspaceState, 'backtestTimeRangeFrom' | 'backtestTimeRangeTo'>>) => void;
   setReplayLastIndex: (lastIndex: number) => void;
   setReplayIndex: (index: number) => void;
   jumpToReplayStart: () => void;
@@ -50,6 +53,8 @@ type PersistedWorkspaceState = Pick<
   | 'selectedSetupId'
   | 'backtestHtfSearchValue'
   | 'backtestLtfSearchValue'
+  | 'backtestTimeRangeFrom'
+  | 'backtestTimeRangeTo'
   | 'autoReplay'
   | 'replaySpeed'
 >;
@@ -63,6 +68,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(persist((set) => ({
   selectedSetupId: '',
   backtestHtfSearchValue: '',
   backtestLtfSearchValue: '',
+  backtestTimeRangeFrom: '',
+  backtestTimeRangeTo: '',
   replayIndex: 0,
   replayLastIndex: -1,
   replayPlaying: false,
@@ -84,6 +91,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(persist((set) => ({
       ? { backtestHtfSearchValue: value }
       : { backtestLtfSearchValue: value },
   ),
+  setBacktestTimeRange: (range) => set({
+    ...range,
+    replayIndex: 0,
+    replayPlaying: false,
+  }),
   setReplayLastIndex: (replayLastIndex) => set({
     replayLastIndex,
     replayIndex: 0,
@@ -133,6 +145,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(persist((set) => ({
     selectedSetupId: state.selectedSetupId,
     backtestHtfSearchValue: state.backtestHtfSearchValue,
     backtestLtfSearchValue: state.backtestLtfSearchValue,
+    backtestTimeRangeFrom: state.backtestTimeRangeFrom,
+    backtestTimeRangeTo: state.backtestTimeRangeTo,
     autoReplay: state.autoReplay,
     replaySpeed: state.replaySpeed,
   }),

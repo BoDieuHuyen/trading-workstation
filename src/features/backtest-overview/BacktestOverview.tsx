@@ -15,6 +15,7 @@ import {
 import type { BacktestTrade, BacktestTradePoi } from './backtestData';
 import { BacktestReplayControls } from './BacktestReplayControls';
 import { useWorkspaceStore } from '../../stores/workspaceStore';
+import { isWithinBacktestTimeRange, parseBacktestTimeRange } from './backtestTimeRange';
 import type { TradeChartOverlay } from '../chart/marketState.types';
 import type { CandlestickData, Time, UTCTimestamp } from 'lightweight-charts';
 
@@ -55,6 +56,8 @@ interface BacktestOverviewProps {
 
 export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   const timeframeMode = useWorkspaceStore((state) => state.backtestTimeframe);
+  const timeRangeFrom = useWorkspaceStore((state) => state.backtestTimeRangeFrom);
+  const timeRangeTo = useWorkspaceStore((state) => state.backtestTimeRangeTo);
   const replayIndex = useWorkspaceStore((state) => state.replayIndex);
   const setReplayLastIndex = useWorkspaceStore((state) => state.setReplayLastIndex);
   const timeframe = timeframeMode === 'htf' ? '1h' : '5m';
@@ -126,13 +129,20 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   const filteredTrades = trades
     .filter((trade) => !selectedSetupId || trade.setup.id === selectedSetupId)
     .sort((left, right) => left.ltf.marketStructure.time - right.ltf.marketStructure.time);
+  const parsedTimeRange = parseBacktestTimeRange(timeRangeFrom, timeRangeTo);
+  const isInTimeRange = (timestampSeconds: number) => (
+    timeframeMode !== 'ltf'
+    || !parsedTimeRange.valid
+    || isWithinBacktestTimeRange(timestampSeconds, parsedTimeRange)
+  );
+  const rangeFilteredTrades = filteredTrades.filter((trade) => isInTimeRange(trade.time));
   const ltfMarketStatesByTime = new Map(
     marketStates.map((state) => [Number(state.marketStructure.time), state]),
   );
   const htfMarketStatesByTime = new Map(
     higherTimeframeMarketStates.map((state) => [Number(state.marketStructure.time), state]),
   );
-  const tradeEntries = filteredTrades.map((trade) => {
+  const tradeEntries = rangeFilteredTrades.map((trade) => {
     const ltfMarketState = ltfMarketStatesByTime.get(trade.ltf.marketStructure.time);
     const htfMarketState = htfMarketStatesByTime.get(trade.htf.marketStructure.time);
     return ltfMarketState && htfMarketState
@@ -154,7 +164,7 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   }));
   const tradeFilteredMarketStates = tradeFilterActive && timeframeMode === 'ltf'
     ? matchedTradeMarketStates
-    : marketStates;
+    : marketStates.filter((state) => isInTimeRange(Number(state.marketStructure.time)));
   const visibleMarketStates = quickFilter === 'setup' && timeframeMode === 'htf'
     ? marketStates.filter((state) => setupTimes.has(Number(state.marketStructure.time)))
     : tradeFilteredMarketStates;
@@ -171,7 +181,7 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
     : null;
   const currentMarketState = visibleMarketStates[replayIndex] ?? null;
   const currentTradeIndex = currentMarketState
-    ? filteredTrades.findIndex(
+    ? rangeFilteredTrades.findIndex(
       (trade) => trade.ltf.marketStructure.time === Number(currentMarketState.marketStructure.time),
     )
     : -1;
@@ -299,10 +309,10 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
           marketStructureCount={visibleMarketStates.length}
           marketStructureNumber={currentMarketState?.marketStructure.number ?? null}
           tradeProgressNumber={tradeProgressNumber}
-          tradeCount={filteredTrades.length}
+          tradeCount={rangeFilteredTrades.length}
           marketStructureNumbers={visibleMarketStates.map((state) => state.marketStructure.number)}
           marketStructureTimes={visibleMarketStates.map((state) => Number(state.marketStructure.time))}
-          tradeSearchTargets={filteredTrades.map((trade) => ({
+          tradeSearchTargets={rangeFilteredTrades.map((trade) => ({
             number: trade.number,
             marketStructureTime: trade.ltf.marketStructure.time,
           }))}

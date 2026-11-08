@@ -11,6 +11,7 @@ import {
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { SYSTEM_CONFIG } from '../../config/system';
 import { useWorkspaceStore } from '../../stores/workspaceStore';
+import { parseBacktestTimeRange } from './backtestTimeRange';
 import type { BacktestTrade } from './backtestData';
 
 const REPLAY_SPEEDS = [1, 2, 5, 10] as const;
@@ -124,6 +125,9 @@ export function BacktestReplayControls({
   const replaySpeed = useWorkspaceStore((state) => state.replaySpeed);
   const setBacktestTimeframe = useWorkspaceStore((state) => state.setBacktestTimeframe);
   const setBacktestSearchValue = useWorkspaceStore((state) => state.setBacktestSearchValue);
+  const timeRangeFrom = useWorkspaceStore((state) => state.backtestTimeRangeFrom);
+  const timeRangeTo = useWorkspaceStore((state) => state.backtestTimeRangeTo);
+  const setBacktestTimeRange = useWorkspaceStore((state) => state.setBacktestTimeRange);
   const setReplayIndex = useWorkspaceStore((state) => state.setReplayIndex);
   const jumpToReplayStart = useWorkspaceStore((state) => state.jumpToReplayStart);
   const jumpToReplayEnd = useWorkspaceStore((state) => state.jumpToReplayEnd);
@@ -138,6 +142,12 @@ export function BacktestReplayControls({
   const progressPercent = progressCurrent === null
     ? 0
     : (progressValue / progressMaximum) * 100;
+  const parsedTimeRange = parseBacktestTimeRange(timeRangeFrom, timeRangeTo);
+  const timeRangeError = parsedTimeRange.valid
+    ? ''
+    : parsedTimeRange.reason === 'reversed'
+      ? SYSTEM_CONFIG.ui.backtestReplay.reversedTimeRange
+      : SYSTEM_CONFIG.ui.backtestReplay.invalidTimeRange;
 
   useEffect(() => {
     if (!setupDropdownOpen) return;
@@ -299,6 +309,44 @@ export function BacktestReplayControls({
           </button>
         </form>
       </div>
+      {showTradeControls && (
+        <div className="backtest-replay__time-range">
+          <span className="backtest-replay__search-label">
+            {SYSTEM_CONFIG.ui.backtestReplay.timeRangeLabel}
+          </span>
+          <div className="backtest-replay__time-range-fields">
+            <label className="backtest-replay__time-range-field" htmlFor="backtest-time-range-from">
+              {SYSTEM_CONFIG.ui.backtestReplay.timeRangeFromLabel}
+              <input
+                id="backtest-time-range-from"
+                type="number"
+                min="1"
+                step="1"
+                value={timeRangeFrom}
+                aria-label={SYSTEM_CONFIG.ui.backtestReplay.timeRangeFromLabel}
+                aria-invalid={Boolean(timeRangeError)}
+                onChange={(event) => setBacktestTimeRange({ backtestTimeRangeFrom: event.target.value })}
+              />
+            </label>
+            <label className="backtest-replay__time-range-field" htmlFor="backtest-time-range-to">
+              {SYSTEM_CONFIG.ui.backtestReplay.timeRangeToLabel}
+              <input
+                id="backtest-time-range-to"
+                type="number"
+                min="1"
+                step="1"
+                value={timeRangeTo}
+                aria-label={SYSTEM_CONFIG.ui.backtestReplay.timeRangeToLabel}
+                aria-invalid={Boolean(timeRangeError)}
+                onChange={(event) => setBacktestTimeRange({ backtestTimeRangeTo: event.target.value })}
+              />
+            </label>
+          </div>
+          {timeRangeError && (
+            <span className="backtest-replay__search-error" role="alert">{timeRangeError}</span>
+          )}
+        </div>
+      )}
       {showTradeControls && (
         <div
           className="backtest-replay__setup-select"

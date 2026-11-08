@@ -65,6 +65,12 @@ button { cursor: pointer; }
 .backtest-replay__search button { display: grid; place-items: center; width: 23px; height: 23px; flex: 0 0 23px; padding: 0; border: 0; border-radius: 4px; color: #91a2b8; background: transparent; }
 .backtest-replay__search button:hover:not(:disabled) { color: #dce6f3; background: #22344a; }
 .backtest-replay__search button:disabled { opacity: .4; cursor: default; }
+.backtest-replay__time-range { margin-top: 8px; }
+.backtest-replay__time-range-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.backtest-replay__time-range-field { display: grid; min-width: 0; gap: 4px; color: #8295ac; font-size: 8px; }
+.backtest-replay__time-range-field input { width: 100%; min-width: 0; padding: 6px; border: 1px solid #293b52; border-radius: 6px; outline: 0; color: #dce6f3; background: #172538; font: 9px "DM Mono", monospace; }
+.backtest-replay__time-range-field input:focus { border-color: #365677; box-shadow: 0 0 0 1px #36567744; }
+.backtest-replay__time-range-field input[aria-invalid="true"] { border-color: #f06c79; }
 .backtest-replay__setup-select { position: relative; display: grid; gap: 4px; margin-top: 8px; }
 .backtest-replay__setup-trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid #293b52; border-radius: 6px; color: #dce6f3; background: #172538; font: 9px Inter, sans-serif; text-align: left; }
 .backtest-replay__setup-trigger:focus-visible { outline: 1px solid #365677; }
