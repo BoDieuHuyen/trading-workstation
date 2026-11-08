@@ -178,20 +178,30 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   const currentTradeEntry = timeframeMode === 'ltf' && tradeFilterActive
     ? matchedTradeEntries[replayIndex] ?? null
     : null;
+  const currentTradeTime = currentTradeEntry?.trade.ltf.marketStructure.time
+    ?? currentMarketState?.marketStructure.time
+    ?? null;
+  const winningTrades = trades.filter((trade) => trade.pnl > 0).length;
+  const losingTrades = trades.filter((trade) => trade.pnl < 0).length;
   const tradeSummary = {
-    count: filteredTrades.length,
-    totalPnl: filteredTrades.reduce((total, trade) => total + trade.pnl, 0),
+    count: trades.length,
+    wins: winningTrades,
+    losses: losingTrades,
+    winRate: winningTrades + losingTrades > 0
+      ? (winningTrades / (winningTrades + losingTrades)) * 100
+      : 0,
+    totalPnl: trades.reduce((total, trade) => total + trade.pnl, 0),
     currentBalance: SYSTEM_CONFIG.backtest.initialBalance
-      + (currentTradeIndex < 0
+      + (currentTradeTime === null
         ? 0
-        : filteredTrades
-          .slice(0, currentTradeIndex + 1)
+        : trades
+          .filter((trade) => trade.ltf.marketStructure.time <= Number(currentTradeTime))
           .reduce((total, trade) => total + trade.pnl, 0)),
-    startTime: filteredTrades.length > 0
-      ? Math.min(...filteredTrades.map((trade) => trade.time))
+    startTime: trades.length > 0
+      ? Math.min(...trades.map((trade) => trade.time))
       : null,
-    endTime: filteredTrades.length > 0
-      ? Math.max(...filteredTrades.map((trade) => trade.endTime))
+    endTime: trades.length > 0
+      ? Math.max(...trades.map((trade) => trade.endTime))
       : null,
   };
   const selectedTrade = currentTradeEntry?.trade ?? null;

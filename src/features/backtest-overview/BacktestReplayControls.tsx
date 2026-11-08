@@ -19,6 +19,7 @@ const USDT_FORMAT = new Intl.NumberFormat('en-US', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
+const PERCENT_FORMAT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
 const TRADE_DATE_FORMAT = new Intl.DateTimeFormat('en-GB', {
   day: '2-digit',
   month: 'short',
@@ -53,6 +54,9 @@ interface BacktestReplayControlsProps {
   onTradeFilterChange: (active: boolean) => void;
   tradeSummary: {
     count: number;
+    wins: number;
+    losses: number;
+    winRate: number;
     totalPnl: number;
     currentBalance: number;
     startTime: number | null;
@@ -72,6 +76,10 @@ function formatUsdt(value: number): string {
 
 function formatSignedUsdt(value: number): string {
   return `${value > 0 ? '+' : ''}${formatUsdt(value)}`;
+}
+
+function formatPercent(value: number): string {
+  return `${PERCENT_FORMAT.format(value)}%`;
 }
 
 function formatTradeDate(value: number, includeTime = false): string {
@@ -502,13 +510,26 @@ export function BacktestReplayControls({
       {isTradeSource && (
         <section className="backtest-replay__trade-info" aria-label={SYSTEM_CONFIG.ui.backtestReplay.tradeDetailsTitle}>
           <div className="backtest-replay__trade-card">
-            <h3 className="backtest-replay__trade-card-title">
-              {SYSTEM_CONFIG.ui.backtestReplay.tradeSummaryTitle}
-            </h3>
+            <div className="backtest-replay__trade-card-heading">
+              <h3 className="backtest-replay__trade-card-title">
+                {SYSTEM_CONFIG.ui.backtestReplay.tradeSummaryTitle}
+              </h3>
+              <strong>
+                {tradeSummary.count} {SYSTEM_CONFIG.ui.backtestReplay.tradeCountLabel}
+              </strong>
+            </div>
             <div className="backtest-replay__trade-grid">
               <div className="backtest-replay__trade-metric">
-                <span>{SYSTEM_CONFIG.ui.backtestReplay.tradeCountLabel}</span>
-                <strong>{tradeSummary.count}</strong>
+                <span>{SYSTEM_CONFIG.ui.backtestReplay.winsLabel}</span>
+                <strong className="positive">{tradeSummary.wins}</strong>
+              </div>
+              <div className="backtest-replay__trade-metric">
+                <span>{SYSTEM_CONFIG.ui.backtestReplay.lossesLabel}</span>
+                <strong className="negative">{tradeSummary.losses}</strong>
+              </div>
+              <div className="backtest-replay__trade-metric">
+                <span>{SYSTEM_CONFIG.ui.backtestReplay.winRateLabel}</span>
+                <strong>{formatPercent(tradeSummary.winRate)}</strong>
               </div>
               <div className="backtest-replay__trade-metric">
                 <span>{SYSTEM_CONFIG.ui.backtestReplay.totalPnlLabel}</span>
