@@ -4,6 +4,7 @@
 node_modules
 dist
 dist-ssr
+src/backtest-results
 *.tsbuildinfo
 .env
 .env.*

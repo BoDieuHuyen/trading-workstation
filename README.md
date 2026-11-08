@@ -33,13 +33,13 @@ npm run preview
 
 ## Run in production with Docker
 
-Build and start the production container:
+Backtest data is mounted from the host and is not included in the Docker image. By default, Compose mounts `src/backtest-results` read-only. To use a different external directory, set `BACKTEST_RESULTS_PATH` in `.env` (for example, `BACKTEST_RESULTS_PATH=E:/market-data/backtest-results`). It must contain a `data` directory with the generated `.js` files.
 
 ```bash
 docker compose up --build -d
 ```
 
-Open http://localhost:8080. To use another host port, set `APP_PORT` (for example, `APP_PORT=9000 docker compose up --build -d`). Check container health with `docker compose ps`, and stop it with `docker compose down`.
+Open http://localhost:8080. Changes to files in the mounted directory are available after reloading the app. To use another host port, set `APP_PORT` (for example, `APP_PORT=9000 docker compose up --build -d`). Check container health with `docker compose ps`, and stop it with `docker compose down`.
 
 ## Included
 

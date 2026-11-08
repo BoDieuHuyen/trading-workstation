@@ -4,24 +4,19 @@ import type {
   Time,
   UTCTimestamp,
 } from 'lightweight-charts';
-import htfDataUrl from '../../backtest-results/data/htf_data.js?url';
-import htfCandlesUrl from '../../backtest-results/data/htf_candles.js?url';
-import htfMarketStatesUrl from '../../backtest-results/data/htf_market_states.js?url';
-import htfSwingsUrl from '../../backtest-results/data/htf_swings.js?url';
-import ltfDataUrl from '../../backtest-results/data/ltf_data.js?url';
-import ltfCandlesUrl from '../../backtest-results/data/ltf_candles.js?url';
-import ltfMarketStatesUrl from '../../backtest-results/data/ltf_market_states.js?url';
-import ltfSwingsUrl from '../../backtest-results/data/ltf_swings.js?url';
-import setupDataUrl from '../../backtest-results/data/setup_data.js?url';
-import tradeDataUrl from '../../backtest-results/data/trade_data.js?url';
 import type { CandleData } from '../chart/candle.types';
 import type { MarketStateOverlay } from '../chart/marketState.types';
 
 type TimeframeMode = 'htf' | 'ltf';
 
+const backtestDataDirectory = import.meta.env.DEV
+  ? '/src/backtest-results/data'
+  : '/backtest-results/data';
+const backtestDataUrl = (filename: string) => `${backtestDataDirectory}/${filename}.js`;
+
 const dataUrls: Record<TimeframeMode, string> = {
-  htf: htfDataUrl,
-  ltf: ltfDataUrl,
+  htf: backtestDataUrl('htf_data'),
+  ltf: backtestDataUrl('ltf_data'),
 };
 
 interface BacktestCandle {
@@ -43,19 +38,22 @@ function parseGeneratedAt(source: string): string {
 }
 
 const candleUrls: Record<TimeframeMode, string> = {
-  htf: htfCandlesUrl,
-  ltf: ltfCandlesUrl,
+  htf: backtestDataUrl('htf_candles'),
+  ltf: backtestDataUrl('ltf_candles'),
 };
 
 const marketStateUrls: Record<TimeframeMode, string> = {
-  htf: htfMarketStatesUrl,
-  ltf: ltfMarketStatesUrl,
+  htf: backtestDataUrl('htf_market_states'),
+  ltf: backtestDataUrl('ltf_market_states'),
 };
 
 const swingUrls: Record<TimeframeMode, string> = {
-  htf: htfSwingsUrl,
-  ltf: ltfSwingsUrl,
+  htf: backtestDataUrl('htf_swings'),
+  ltf: backtestDataUrl('ltf_swings'),
 };
+
+const setupDataUrl = backtestDataUrl('setup_data');
+const tradeDataUrl = backtestDataUrl('trade_data');
 
 interface RawMarketState {
   market_structure: {

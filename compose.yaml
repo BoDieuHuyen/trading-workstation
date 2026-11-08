@@ -12,3 +12,10 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    volumes:
+      - type: bind
+        source: ${BACKTEST_RESULTS_PATH:-./src/backtest-results}
+        target: /usr/share/nginx/html/backtest-results
+        read_only: true
+        bind:
+          create_host_path: false
