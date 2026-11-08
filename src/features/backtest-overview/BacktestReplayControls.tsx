@@ -108,19 +108,22 @@ export function BacktestReplayControls({
   selectedTrade,
   selectedTradeExitType,
 }: BacktestReplayControlsProps) {
-  const [searchValue, setSearchValue] = useState('');
   const [searchError, setSearchError] = useState('');
   const [setupDropdownOpen, setSetupDropdownOpen] = useState(false);
   const setupDropdownRef = useRef<HTMLDivElement>(null);
   const setupTriggerRef = useRef<HTMLButtonElement>(null);
   const setupOptionsRef = useRef<HTMLDivElement>(null);
   const timeframe = useWorkspaceStore((state) => state.backtestTimeframe);
+  const searchValue = useWorkspaceStore((state) => (
+    timeframe === 'htf' ? state.backtestHtfSearchValue : state.backtestLtfSearchValue
+  ));
   const replayIndex = useWorkspaceStore((state) => state.replayIndex);
   const replayLastIndex = useWorkspaceStore((state) => state.replayLastIndex);
   const replayPlaying = useWorkspaceStore((state) => state.replayPlaying);
   const autoReplay = useWorkspaceStore((state) => state.autoReplay);
   const replaySpeed = useWorkspaceStore((state) => state.replaySpeed);
   const setBacktestTimeframe = useWorkspaceStore((state) => state.setBacktestTimeframe);
+  const setBacktestSearchValue = useWorkspaceStore((state) => state.setBacktestSearchValue);
   const setReplayIndex = useWorkspaceStore((state) => state.setReplayIndex);
   const jumpToReplayStart = useWorkspaceStore((state) => state.jumpToReplayStart);
   const jumpToReplayEnd = useWorkspaceStore((state) => state.jumpToReplayEnd);
@@ -278,7 +281,7 @@ export function BacktestReplayControls({
               : SYSTEM_CONFIG.ui.backtestReplay.searchPlaceholder}
             disabled={!hasReplayData}
             onChange={(event) => {
-              setSearchValue(event.target.value);
+              setBacktestSearchValue(timeframe, event.target.value);
               setSearchError('');
             }}
           />

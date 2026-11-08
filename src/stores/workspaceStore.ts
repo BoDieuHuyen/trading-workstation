@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { DEFAULT_MARKET_SYMBOL, type MarketSymbol } from '../config/marketSymbols';
 import { SYSTEM_CONFIG, type TradingMode } from '../config/system';
 
@@ -13,6 +14,9 @@ interface WorkspaceState {
   mode: TradingMode;
   selectedSymbol: MarketSymbol;
   backtestTimeframe: BacktestTimeframe;
+  selectedSetupId: string;
+  backtestHtfSearchValue: string;
+  backtestLtfSearchValue: string;
   replayIndex: number;
   replayLastIndex: number;
   replayPlaying: boolean;
@@ -24,6 +28,8 @@ interface WorkspaceState {
   setMode: (mode: TradingMode) => void;
   setSelectedSymbol: (symbol: MarketSymbol) => void;
   setBacktestTimeframe: (timeframe: BacktestTimeframe) => void;
+  setSelectedSetupId: (setupId: string) => void;
+  setBacktestSearchValue: (timeframe: BacktestTimeframe, value: string) => void;
   setReplayLastIndex: (lastIndex: number) => void;
   setReplayIndex: (index: number) => void;
   jumpToReplayStart: () => void;
@@ -34,12 +40,29 @@ interface WorkspaceState {
   setReplaySpeed: (speed: BacktestReplaySpeed) => void;
 }
 
-export const useWorkspaceStore = create<WorkspaceState>((set) => ({
+type PersistedWorkspaceState = Pick<
+  WorkspaceState,
+  | 'sidebarCollapsed'
+  | 'activeTab'
+  | 'mode'
+  | 'selectedSymbol'
+  | 'backtestTimeframe'
+  | 'selectedSetupId'
+  | 'backtestHtfSearchValue'
+  | 'backtestLtfSearchValue'
+  | 'autoReplay'
+  | 'replaySpeed'
+>;
+
+export const useWorkspaceStore = create<WorkspaceState>()(persist((set) => ({
   sidebarCollapsed: false,
   activeTab: 'events',
   mode: SYSTEM_CONFIG.defaultMode,
   selectedSymbol: DEFAULT_MARKET_SYMBOL,
   backtestTimeframe: 'htf',
+  selectedSetupId: '',
+  backtestHtfSearchValue: '',
+  backtestLtfSearchValue: '',
   replayIndex: 0,
   replayLastIndex: -1,
   replayPlaying: false,
@@ -55,6 +78,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       ? {}
       : { backtestTimeframe, replayIndex: 0, replayLastIndex: -1, replayPlaying: false }
   )),
+  setSelectedSetupId: (selectedSetupId) => set({ selectedSetupId }),
+  setBacktestSearchValue: (timeframe, value) => set(
+    timeframe === 'htf'
+      ? { backtestHtfSearchValue: value }
+      : { backtestLtfSearchValue: value },
+  ),
   setReplayLastIndex: (replayLastIndex) => set({
     replayLastIndex,
     replayIndex: 0,
@@ -93,4 +122,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   }),
   setAutoReplay: (autoReplay) => set({ autoReplay }),
   setReplaySpeed: (replaySpeed) => set({ replaySpeed }),
+}), {
+  name: 'trading-workstation-workspace',
+  partialize: (state): PersistedWorkspaceState => ({
+    sidebarCollapsed: state.sidebarCollapsed,
+    activeTab: state.activeTab,
+    mode: state.mode,
+    selectedSymbol: state.selectedSymbol,
+    backtestTimeframe: state.backtestTimeframe,
+    selectedSetupId: state.selectedSetupId,
+    backtestHtfSearchValue: state.backtestHtfSearchValue,
+    backtestLtfSearchValue: state.backtestLtfSearchValue,
+    autoReplay: state.autoReplay,
+    replaySpeed: state.replaySpeed,
+  }),
 }));

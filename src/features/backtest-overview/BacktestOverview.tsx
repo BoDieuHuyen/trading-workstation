@@ -64,7 +64,8 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   const [setupTimes, setSetupTimes] = useState<Set<number>>(() => new Set());
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
   const [trades, setTrades] = useState<Awaited<ReturnType<typeof loadBacktestTrades>>>([]);
-  const [selectedSetupId, setSelectedSetupId] = useState('');
+  const selectedSetupId = useWorkspaceStore((state) => state.selectedSetupId);
+  const setSelectedSetupId = useWorkspaceStore((state) => state.setSelectedSetupId);
   const [tradeFilterActive, setTradeFilterActive] = useState(timeframeMode === 'ltf');
   const [swingMarkers, setSwingMarkers] = useState<Awaited<ReturnType<typeof loadBacktestSwings>>>([]);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
