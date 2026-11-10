@@ -140,7 +140,7 @@ export function TradingWorkspaceView({
           </div>
 
           {activeWorkspacePage === 'eventFilters' ? (
-            <Report symbol={selectedSymbol} onSetSymbol={onSetSelectedSymbol} />
+            <Report symbol={selectedSymbol} mode={mode} onSetSymbol={onSetSelectedSymbol} />
           ) : mode === 'backtest' ? (
             <BacktestOverview symbol={selectedSymbol} />
           ) : (

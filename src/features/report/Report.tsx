@@ -1,21 +1,26 @@
 import { CalendarDays, ChevronDown } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { MARKET_SYMBOLS, type MarketSymbol } from '../../config/marketSymbols';
-import { SYSTEM_CONFIG } from '../../config/system';
+import { SYSTEM_CONFIG, type TradingMode } from '../../config/system';
 import { loadBacktestTrades } from '../backtest-overview/backtestData';
 import type { BacktestTrade } from '../backtest-overview/backtestData';
 
 interface ReportProps {
   symbol: MarketSymbol;
+  mode: TradingMode;
   onSetSymbol: (symbol: MarketSymbol) => void;
 }
 
 const setupTypes = ['CHOCH + OB', 'BOS + OB', 'CHOCH + FVG', 'Liquidity Sweep'];
 const initialSetupTypes = ['CHOCH + OB', 'BOS + OB'];
 const timeframes = ['1m', '5m', '15m', '1h', '4h', '1d'];
-const reportTabs = ['Overview', 'Performance', 'Setup Analysis', 'Trade Explorer', 'Risk Analysis'];
+const reportTabs = ['Overview', 'Trade Explorer', 'Performance', 'Setup Analysis', 'Risk Analysis'];
 const tradeExplorerFilters = ['All Trades', 'Win', 'Loss', 'Long', 'Short'] as const;
 type TradeExplorerFilter = (typeof tradeExplorerFilters)[number];
+const USDT_FORMAT = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 function isMarketSymbol(value: string): value is MarketSymbol {
   return Object.values(MARKET_SYMBOLS).some((market) => market.symbol === value);
@@ -65,7 +70,7 @@ function formatTradeDate(timestamp: number): string {
   return `${day}/${month}/${date.getUTCFullYear()}`;
 }
 
-export function Report({ symbol, onSetSymbol }: ReportProps) {
+export function Report({ symbol, mode, onSetSymbol }: ReportProps) {
   const [direction, setDirection] = useState('All');
   const [result, setResult] = useState('All');
   const [timeframe, setTimeframe] = useState('All');
@@ -263,7 +268,7 @@ export function Report({ symbol, onSetSymbol }: ReportProps) {
         <aside className="report-summary" aria-labelledby="report-summary-title">
           <header className="report-summary__header">
             <div>
-              <h2 id="report-summary-title">Backtest Report</h2>
+              <h2 id="report-summary-title">{mode === 'backtest' ? 'Backtest Report' : 'Report'}</h2>
               <p>{symbol} · {timeframe === 'All' ? '5m' : timeframe} · {reportStats.dateRange}</p>
             </div>
             <span className={`report-summary__status${tradeDataError ? ' report-summary__status--error' : ''}`}>
@@ -465,7 +470,19 @@ export function Report({ symbol, onSetSymbol }: ReportProps) {
                       const tradeR = getTradeR(trade);
                       const tradeResult = getTradeResult(trade);
                       return (
-                        <tr className={selectedTrade?.number === trade.number ? 'report-trade-row--selected' : ''} key={trade.number}>
+                        <tr
+                          className={selectedTrade?.number === trade.number ? 'report-trade-row--selected' : ''}
+                          key={trade.number}
+                          tabIndex={0}
+                          aria-selected={selectedTrade?.number === trade.number}
+                          onClick={() => setSelectedTradeNumber(trade.number)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              setSelectedTradeNumber(trade.number);
+                            }
+                          }}
+                        >
                           <td>
                             <button
                               type="button"
@@ -512,6 +529,12 @@ export function Report({ symbol, onSetSymbol }: ReportProps) {
                       <span>Result</span>
                       <strong className={selectedTrade.pnl >= 0 ? 'positive' : 'negative'}>
                         {selectedTradeR === null ? '—' : `${selectedTradeR > 0 ? '+' : ''}${selectedTradeR.toFixed(1)}R`}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>P&amp;L</span>
+                      <strong className={selectedTrade.pnl >= 0 ? 'positive' : 'negative'}>
+                        {`${selectedTrade.pnl > 0 ? '+' : ''}${USDT_FORMAT.format(selectedTrade.pnl)} USDT`}
                       </strong>
                     </div>
                   </div>
