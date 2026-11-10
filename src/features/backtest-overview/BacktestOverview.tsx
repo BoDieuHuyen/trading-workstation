@@ -61,6 +61,8 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   const replayIndex = useWorkspaceStore((state) => state.replayIndex);
   const setReplayIndex = useWorkspaceStore((state) => state.setReplayIndex);
   const setReplayLastIndex = useWorkspaceStore((state) => state.setReplayLastIndex);
+  const navigationTarget = useWorkspaceStore((state) => state.backtestNavigationTarget);
+  const setBacktestNavigationTarget = useWorkspaceStore((state) => state.setBacktestNavigationTarget);
   const timeframe = timeframeMode === 'htf' ? '1h' : '5m';
   const [candlesData, setCandlesData] = useState<CandlestickData<Time>[]>([]);
   const [marketStates, setMarketStates] = useState<Awaited<ReturnType<typeof loadBacktestMarketStates>>>([]);
@@ -71,10 +73,13 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   const selectedSetupId = useWorkspaceStore((state) => state.selectedSetupId);
   const setSelectedSetupId = useWorkspaceStore((state) => state.setSelectedSetupId);
   const [tradeSetupFilterId, setTradeSetupFilterId] = useState('');
-  const [tradeFilterActive, setTradeFilterActive] = useState(timeframeMode === 'ltf');
+  const [tradeFilterActive, setTradeFilterActive] = useState(
+    timeframeMode === 'ltf' && navigationTarget === null,
+  );
   const [swingMarkers, setSwingMarkers] = useState<Awaited<ReturnType<typeof loadBacktestSwings>>>([]);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,12 +89,13 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
     setSetups([]);
     setQuickFilter('all');
     setTrades([]);
-    setSelectedSetupId('');
+    if (navigationTarget === null) setSelectedSetupId('');
     setTradeSetupFilterId('');
-    setTradeFilterActive(timeframeMode === 'ltf');
+    setTradeFilterActive(timeframeMode === 'ltf' && navigationTarget === null);
     setSwingMarkers([]);
     setGeneratedAt(null);
     setDataError(null);
+    setDataLoaded(false);
     setReplayLastIndex(-1);
 
     Promise.all([
@@ -112,6 +118,7 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
           setSetups(loadedSetups);
           setTrades(loadedTrades);
           setSwingMarkers(swings);
+          setDataLoaded(true);
         }
       },
       (error: unknown) => {
@@ -189,6 +196,34 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   useEffect(() => {
     setReplayLastIndex(visibleMarketStates.length - 1);
   }, [setReplayLastIndex, visibleMarketStates.length]);
+
+  useEffect(() => {
+    if (navigationTarget === null || timeframeMode !== 'ltf' || !dataLoaded) return;
+
+    const targetIndex = visibleMarketStates.findIndex((state) => (
+      Number(state.marketStructure.time) === navigationTarget.marketStructureTime
+      && state.marketStructure.number === navigationTarget.marketStructureNumber
+    ));
+    if (targetIndex < 0) {
+      setDataError(
+        `LTF market structure ${navigationTarget.marketStructureNumber} was not found for setup ${navigationTarget.setupId}.`,
+      );
+      setBacktestNavigationTarget(null);
+      return;
+    }
+
+    setSelectedSetupId(navigationTarget.setupId);
+    setReplayIndex(targetIndex);
+    setBacktestNavigationTarget(null);
+  }, [
+    dataLoaded,
+    navigationTarget,
+    setBacktestNavigationTarget,
+    setReplayIndex,
+    setSelectedSetupId,
+    timeframeMode,
+    visibleMarketStates,
+  ]);
 
   const visibleCandles = replayIndex < 0
     ? []
@@ -303,7 +338,7 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   const chartError = dataError ?? (
     timeframeMode === 'ltf' && tradeFilterActive && hasMissingTradeMarketState
       ? SYSTEM_CONFIG.ui.backtestReplay.tradeMarketStructureMissing
-      : timeframeMode === 'ltf' && selectedSetupId && !selectedSetupMarketState
+      : timeframeMode === 'ltf' && dataLoaded && selectedSetupId && !selectedSetupMarketState
         ? SYSTEM_CONFIG.ui.backtestReplay.setupMarketStructureMissing
         : null
   );
@@ -338,7 +373,7 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
           focusAdditionalMarketState={timeframeMode === 'ltf'
             && Boolean(selectedSetupId)
             && !currentTradeEntry
-            && replayIndex > 0}
+          }
           tradeOverlay={tradeOverlay}
           toolbarContent={chartError
             ? <span className="chart-status" role="alert">{chartError}</span>

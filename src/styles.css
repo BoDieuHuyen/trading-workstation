@@ -293,6 +293,60 @@ button { cursor: pointer; }
 .report-explorer__filter--active { border-color: #365677; color: #83b5ff; background: #1b3555; }
 .report-explorer__filter--win.report-explorer__filter--active { border-color: #176345; color: #24c995; background: #12392e; }
 .report-explorer__filter--loss.report-explorer__filter--active { border-color: #7a3540; color: #f06c79; background: #3a2028; }
+.report-ltf-explorer { display: grid; flex: 0 0 auto; min-height: 260px; align-content: start; gap: 12px; padding: 14px; border: 1px solid #26364b; border-radius: 8px; background: #101a29; }
+.report-explorer__search { display: flex; align-items: center; gap: 8px; width: min(100%, 440px); min-height: 34px; padding: 0 9px; border: 1px solid #34445a; border-radius: 6px; color: #aab9cb; background: #0c1420; }
+.report-explorer__search:focus-within { border-color: #52749a; }
+.report-explorer__search input { width: 100%; min-width: 0; border: 0; outline: 0; color: #dce6f3; background: transparent; font: inherit; font-size: 10px; }
+.report-explorer__search input::placeholder { color: #71849c; }
+.report-explorer__search input::-webkit-search-cancel-button { cursor: pointer; }
+.report-ltf-explorer__list { display: grid; min-width: 0; gap: 8px; }
+.report-ltf-explorer__section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.report-ltf-explorer__section-heading h3 { margin: 0; color: #dce6f3; font-size: 11px; font-weight: 650; }
+.report-ltf-explorer__section-heading > span { color: #aab9cb; font-size: 9px; }
+.report-ltf-explorer__table-wrap { max-height: 260px; min-height: 0; overflow: auto; border-top: 1px solid #26364b; border-bottom: 1px solid #26364b; }
+.report-ltf-explorer__table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9px; }
+.report-ltf-explorer__setup-table { min-width: 760px; }
+.report-ltf-explorer__ltf-table { min-width: 900px; }
+.report-ltf-explorer__table th { position: sticky; top: 0; z-index: 1; padding: 7px 5px; color: #aab9cb; background: #101a29; text-align: left; font-size: 8px; font-weight: 600; }
+.report-ltf-explorer__table td { padding: 7px 5px; border-top: 1px solid #1d2c40; color: #dce6f3; white-space: nowrap; }
+.report-ltf-explorer__setup-table th:nth-child(1) { width: 11%; }
+.report-ltf-explorer__setup-table th:nth-child(2) { width: 10%; }
+.report-ltf-explorer__setup-table th:nth-child(3) { width: 12%; }
+.report-ltf-explorer__setup-table th:nth-child(4) { width: 12%; }
+.report-ltf-explorer__setup-table th:nth-child(5) { width: 9%; }
+.report-ltf-explorer__setup-table th:nth-child(6) { width: 8%; }
+.report-ltf-explorer__setup-table th:nth-child(7) { width: 18%; }
+.report-ltf-explorer__setup-table th:nth-child(8) { width: 10%; }
+.report-ltf-explorer__ltf-table th:nth-child(1) { width: 12%; }
+.report-ltf-explorer__ltf-table th:nth-child(2) { width: 8%; }
+.report-ltf-explorer__ltf-table th:nth-child(3) { width: 11%; }
+.report-ltf-explorer__ltf-table th:nth-child(4) { width: 14%; }
+.report-ltf-explorer__ltf-table th:nth-child(5) { width: 10%; }
+.report-ltf-explorer__ltf-table th:nth-child(6) { width: 11%; }
+.report-ltf-explorer__ltf-table th:nth-child(7) { width: 7%; }
+.report-ltf-explorer__ltf-table th:nth-child(8) { width: 8%; }
+.report-ltf-explorer__ltf-table th:nth-child(9) { width: 9%; }
+.report-ltf-explorer__ltf-table th:nth-child(10) { width: 5%; }
+.report-ltf-explorer__table tbody tr { cursor: pointer; }
+.report-ltf-explorer__table tbody tr:hover, .report-ltf-explorer__row--selected { background: #17263a; }
+.report-ltf-explorer__table tbody tr:focus-visible { outline: 2px solid #83b5ff; outline-offset: -2px; }
+.report-ltf-explorer__id { padding: 0; border: 0; color: #dce6f3; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.report-ltf-explorer__id:hover, .report-ltf-explorer__id[aria-pressed="true"] { color: #83b5ff; }
+.report-ltf-explorer__direction, .report-ltf-explorer__status { display: inline-block; padding: 2px 6px; border-radius: 999px; font-size: 8px; font-weight: 650; }
+.report-ltf-explorer__direction--bullish, .report-ltf-explorer__status--active { color: #24c995; background: #12392e; }
+.report-ltf-explorer__direction--bearish, .report-ltf-explorer__status--invalid { color: #f06c79; background: #3a2028; }
+.report-ltf-explorer__empty { padding: 16px !important; color: #aab9cb !important; text-align: center; }
+.report-ltf-explorer__message { margin: 0; color: #aab9cb; font-size: 9px; }
+.report-ltf-explorer__actions-cell { position: relative; }
+.report-ltf-explorer__actions { position: relative; display: flex; justify-content: center; }
+.report-ltf-explorer__actions-trigger { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 22px; padding: 0; border: 1px solid transparent; border-radius: 4px; color: #aab9cb; background: transparent; cursor: pointer; }
+.report-ltf-explorer__actions-trigger:hover, .report-ltf-explorer__actions-trigger[aria-expanded="true"] { border-color: #34445a; color: #fff; background: #172538; }
+.report-ltf-explorer__actions-menu { position: absolute; z-index: 3; top: calc(100% + 4px); right: 0; display: grid; width: 196px; padding: 5px; border: 1px solid #34445a; border-radius: 7px; background: #0c1420; box-shadow: 0 8px 20px #0008; }
+.report-ltf-explorer__actions-heading { padding: 5px 7px 7px; color: #aab9cb; font-size: 8px; }
+.report-ltf-explorer__action-item { display: flex; align-items: center; gap: 7px; min-height: 25px; padding: 4px 7px; border: 0; border-radius: 4px; color: #dce6f3; background: transparent; font: inherit; font-size: 9px; text-align: left; cursor: pointer; }
+.report-ltf-explorer__action-item:hover:not(:disabled) { color: #fff; background: #1b3555; }
+.report-ltf-explorer__action-item:disabled { color: #aab9cb; opacity: 1; cursor: default; }
+.report-ltf-explorer__actions-divider { height: 1px; margin: 4px 2px; background: #26364b; }
 .report-trade-table-wrap { min-height: 0; overflow: auto; border-top: 1px solid #26364b; border-bottom: 1px solid #26364b; }
 .report-trade-table { width: 100%; min-width: 520px; border-collapse: collapse; table-layout: fixed; font-size: 10px; }
 .report-trade-table th { position: sticky; top: 0; z-index: 1; padding: 8px 7px; color: #aab9cb; background: #101a29; text-align: left; font-size: 9px; }

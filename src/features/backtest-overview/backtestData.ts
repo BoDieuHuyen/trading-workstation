@@ -85,10 +85,22 @@ interface BacktestSwing {
   price: number;
 }
 
-interface BacktestSetup {
+export interface BacktestSetup {
   id: string;
   time: number;
   number: number;
+  symbol: string;
+  side: 'LONG' | 'SHORT';
+  endTime: number | null;
+}
+
+interface RawBacktestSetup extends Record<string, unknown> {
+  id: string;
+  time: number;
+  number: number;
+  symbol: string;
+  side: 'LONG' | 'SHORT';
+  end_time: number | null;
 }
 
 export interface BacktestTrade {
@@ -203,7 +215,7 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
-function isBacktestSetup(value: unknown): value is BacktestSetup {
+function isBacktestSetup(value: unknown): value is RawBacktestSetup {
   return isRecord(value)
     && typeof value.id === 'string'
     && value.id.length > 0
@@ -212,7 +224,15 @@ function isBacktestSetup(value: unknown): value is BacktestSetup {
     && value.time > 0
     && isFiniteNumber(value.number)
     && Number.isSafeInteger(value.number)
-    && value.number > 0;
+    && value.number > 0
+    && typeof value.symbol === 'string'
+    && value.symbol.length > 0
+    && (value.side === 'LONG' || value.side === 'SHORT')
+    && (value.end_time === null || (
+      isFiniteNumber(value.end_time)
+      && Number.isSafeInteger(value.end_time)
+      && value.end_time >= value.time
+    ));
 }
 
 function isBacktestTradeMarketStructure(
@@ -491,7 +511,16 @@ function parseSetups(source: string): BacktestSetup[] {
     throw new Error('Backtest setup data is empty or contains invalid setups.');
   }
 
-  return parsed.sort((left, right) => left.number - right.number);
+  return parsed
+    .map(({ id, time, number, symbol, side, end_time }) => ({
+      id,
+      time,
+      number,
+      symbol,
+      side,
+      endTime: end_time,
+    }))
+    .sort((left, right) => left.number - right.number);
 }
 
 function parseTrades(source: string): BacktestTrade[] {

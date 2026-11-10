@@ -9,6 +9,12 @@ export type BacktestTimeframe = 'htf' | 'ltf';
 export type BacktestReplaySpeed = 1 | 2 | 5 | 10;
 export type { MarketSymbol } from '../config/marketSymbols';
 
+export interface BacktestNavigationTarget {
+  setupId: string;
+  marketStructureNumber: number;
+  marketStructureTime: number;
+}
+
 interface WorkspaceState {
   sidebarCollapsed: boolean;
   activeTab: BottomTab;
@@ -21,6 +27,7 @@ interface WorkspaceState {
   backtestLtfSearchValue: string;
   backtestTimeRangeFrom: string;
   backtestTimeRangeTo: string;
+  backtestNavigationTarget: BacktestNavigationTarget | null;
   replayIndex: number;
   replayLastIndex: number;
   replayPlaying: boolean;
@@ -36,6 +43,7 @@ interface WorkspaceState {
   setSelectedSetupId: (setupId: string) => void;
   setBacktestSearchValue: (timeframe: BacktestTimeframe, value: string) => void;
   setBacktestTimeRange: (range: Partial<Pick<WorkspaceState, 'backtestTimeRangeFrom' | 'backtestTimeRangeTo'>>) => void;
+  setBacktestNavigationTarget: (target: BacktestNavigationTarget | null) => void;
   setReplayLastIndex: (lastIndex: number) => void;
   setReplayIndex: (index: number) => void;
   jumpToReplayStart: () => void;
@@ -75,6 +83,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(persist((set) => ({
   backtestLtfSearchValue: '',
   backtestTimeRangeFrom: '',
   backtestTimeRangeTo: '',
+  backtestNavigationTarget: null,
   replayIndex: 0,
   replayLastIndex: -1,
   replayPlaying: false,
@@ -102,6 +111,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(persist((set) => ({
     replayIndex: 0,
     replayPlaying: false,
   }),
+  setBacktestNavigationTarget: (backtestNavigationTarget) => set({ backtestNavigationTarget }),
   setReplayLastIndex: (replayLastIndex) => set({
     replayLastIndex,
     replayIndex: 0,

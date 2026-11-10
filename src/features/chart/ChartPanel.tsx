@@ -53,14 +53,17 @@ function getPoiEndTime(
 function getMarketStateVisibleRange(
   marketState: MarketStateOverlay,
   candles: CandleData[],
+  includePoiRange = true,
 ) {
   const timestamps = [
     Number(marketState.marketStructure.eventPrice.time),
     Number(marketState.marketStructure.time),
-    ...marketState.pois.flatMap((poi) => [
-      Number(poi.startTime),
-      Number(getPoiEndTime(poi, candles)),
-    ]),
+    ...(includePoiRange
+      ? marketState.pois.flatMap((poi) => [
+        Number(poi.startTime),
+        Number(getPoiEndTime(poi, candles)),
+      ])
+      : []),
   ];
   const start = Math.min(...timestamps);
   const end = Math.max(...timestamps);
@@ -401,7 +404,7 @@ export function ChartPanel({
       ? additionalMarketState ?? marketState
       : marketState;
     const marketStateVisibleRange = rangeMarketState
-      ? getMarketStateVisibleRange(rangeMarketState, candlesData)
+      ? getMarketStateVisibleRange(rangeMarketState, candlesData, !focusAdditionalMarketState)
       : null;
     if (marketStateVisibleRange) marketStateRangeRef.current = marketStateVisibleRange;
     if (structure) {
@@ -470,7 +473,15 @@ export function ChartPanel({
     if (marketStateVisibleRange && hasInitialDataRef.current) {
       chart.timeScale().setVisibleRange(marketStateVisibleRange);
     }
-  }, [additionalMarketState, candlesData, marketState, showFVG, showOB, tradeOverlay]);
+  }, [
+    additionalMarketState,
+    candlesData,
+    focusAdditionalMarketState,
+    marketState,
+    showFVG,
+    showOB,
+    tradeOverlay,
+  ]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -602,6 +613,7 @@ export function ChartPanel({
 
   useEffect(() => {
     if (!chartRef.current || !candlesRef.current || candlesData.length === 0) return;
+    const targetVisibleRange = marketStateRangeRef.current;
     if (!hasInitialDataRef.current) {
       setChartData(chartRef.current, candlesRef.current, candlesData);
       hasInitialDataRef.current = true;
@@ -612,8 +624,10 @@ export function ChartPanel({
     }
 
     previousDataLengthRef.current = candlesData.length;
-    if (marketStateRangeRef.current) {
-      chartRef.current.timeScale().setVisibleRange(marketStateRangeRef.current);
+    const visibleRange = targetVisibleRange ?? marketStateRangeRef.current;
+    if (visibleRange) {
+      marketStateRangeRef.current = visibleRange;
+      chartRef.current.timeScale().setVisibleRange(visibleRange);
     }
   }, [candlesData]);
 
