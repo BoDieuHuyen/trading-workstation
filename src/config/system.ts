@@ -82,6 +82,7 @@ export const SYSTEM_CONFIG = {
       invalidTradeNumber: "Enter a valid trade number.",
       tradeNotFound: "Trade not found in the selected setup.",
       tradeMarketStructureMissing: "Could not find HTF or LTF market structures for one or more trades.",
+      setupMarketStructureMissing: "Could not find the HTF market structure for the selected setup.",
       tradeSummaryTitle: "TRADE SUMMARY",
       tradeDetailsTitle: "TRADE DETAILS",
       tradeCountLabel: "Trades",

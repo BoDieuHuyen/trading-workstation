@@ -86,7 +86,9 @@ interface BacktestSwing {
 }
 
 interface BacktestSetup {
+  id: string;
   time: number;
+  number: number;
 }
 
 export interface BacktestTrade {
@@ -203,9 +205,14 @@ function isFiniteNumber(value: unknown): value is number {
 
 function isBacktestSetup(value: unknown): value is BacktestSetup {
   return isRecord(value)
+    && typeof value.id === 'string'
+    && value.id.length > 0
     && isFiniteNumber(value.time)
     && Number.isSafeInteger(value.time)
-    && value.time > 0;
+    && value.time > 0
+    && isFiniteNumber(value.number)
+    && Number.isSafeInteger(value.number)
+    && value.number > 0;
 }
 
 function isBacktestTradeMarketStructure(
@@ -469,7 +476,7 @@ function parseMarketStates(source: string): BacktestMarketState[] {
     .sort((left, right) => Number(left.marketStructure.time) - Number(right.marketStructure.time));
 }
 
-function parseSetupTimes(source: string): Set<number> {
+function parseSetups(source: string): BacktestSetup[] {
   const assignmentIndex = source.indexOf('const setups=');
   const arrayStart = source.indexOf('[', assignmentIndex);
   const arrayEnd = source.lastIndexOf(']');
@@ -484,7 +491,7 @@ function parseSetupTimes(source: string): Set<number> {
     throw new Error('Backtest setup data is empty or contains invalid setups.');
   }
 
-  return new Set(parsed.map((setup: BacktestSetup) => setup.time));
+  return parsed.sort((left, right) => left.number - right.number);
 }
 
 function parseTrades(source: string): BacktestTrade[] {
@@ -600,13 +607,13 @@ export async function loadBacktestMarketStates(
   return parseMarketStates(await response.text());
 }
 
-export async function loadBacktestSetupTimes(): Promise<Set<number>> {
+export async function loadBacktestSetups(): Promise<BacktestSetup[]> {
   const response = await fetch(setupDataUrl);
   if (!response.ok) {
     throw new Error(`Could not load backtest setup data (${response.status}).`);
   }
 
-  return parseSetupTimes(await response.text());
+  return parseSetups(await response.text());
 }
 
 export async function loadBacktestTrades(): Promise<BacktestTrade[]> {

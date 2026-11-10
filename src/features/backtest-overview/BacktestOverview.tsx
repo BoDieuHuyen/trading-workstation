@@ -8,7 +8,7 @@ import {
   loadBacktestCandles,
   loadBacktestGeneratedAt,
   loadBacktestMarketStates,
-  loadBacktestSetupTimes,
+  loadBacktestSetups,
   loadBacktestSwings,
   loadBacktestTrades,
 } from './backtestData';
@@ -59,16 +59,18 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   const timeRangeFrom = useWorkspaceStore((state) => state.backtestTimeRangeFrom);
   const timeRangeTo = useWorkspaceStore((state) => state.backtestTimeRangeTo);
   const replayIndex = useWorkspaceStore((state) => state.replayIndex);
+  const setReplayIndex = useWorkspaceStore((state) => state.setReplayIndex);
   const setReplayLastIndex = useWorkspaceStore((state) => state.setReplayLastIndex);
   const timeframe = timeframeMode === 'htf' ? '1h' : '5m';
   const [candlesData, setCandlesData] = useState<CandlestickData<Time>[]>([]);
   const [marketStates, setMarketStates] = useState<Awaited<ReturnType<typeof loadBacktestMarketStates>>>([]);
   const [higherTimeframeMarketStates, setHigherTimeframeMarketStates] = useState<Awaited<ReturnType<typeof loadBacktestMarketStates>>>([]);
-  const [setupTimes, setSetupTimes] = useState<Set<number>>(() => new Set());
+  const [setups, setSetups] = useState<Awaited<ReturnType<typeof loadBacktestSetups>>>([]);
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
   const [trades, setTrades] = useState<Awaited<ReturnType<typeof loadBacktestTrades>>>([]);
   const selectedSetupId = useWorkspaceStore((state) => state.selectedSetupId);
   const setSelectedSetupId = useWorkspaceStore((state) => state.setSelectedSetupId);
+  const [tradeSetupFilterId, setTradeSetupFilterId] = useState('');
   const [tradeFilterActive, setTradeFilterActive] = useState(timeframeMode === 'ltf');
   const [swingMarkers, setSwingMarkers] = useState<Awaited<ReturnType<typeof loadBacktestSwings>>>([]);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
@@ -79,10 +81,11 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
     setCandlesData([]);
     setMarketStates([]);
     setHigherTimeframeMarketStates([]);
-    setSetupTimes(new Set());
+    setSetups([]);
     setQuickFilter('all');
     setTrades([]);
     setSelectedSetupId('');
+    setTradeSetupFilterId('');
     setTradeFilterActive(timeframeMode === 'ltf');
     setSwingMarkers([]);
     setGeneratedAt(null);
@@ -95,10 +98,10 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
       loadBacktestMarketStates(timeframeMode),
       timeframeMode === 'ltf' ? loadBacktestMarketStates('htf') : Promise.resolve([]),
       loadBacktestSwings(timeframeMode),
-      timeframeMode === 'htf' ? loadBacktestSetupTimes() : Promise.resolve(new Set<number>()),
+      loadBacktestSetups(),
       timeframeMode === 'ltf' ? loadBacktestTrades() : Promise.resolve([]),
     ]).then(
-      ([candles, timestamp, states, loadedHigherTimeframeStates, swings, loadedSetupTimes, loadedTrades]) => {
+      ([candles, timestamp, states, loadedHigherTimeframeStates, swings, loadedSetups, loadedTrades]) => {
         if (!cancelled) {
           setCandlesData(candles);
           setGeneratedAt(timestamp);
@@ -106,7 +109,7 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
           setHigherTimeframeMarketStates(
             timeframeMode === 'htf' ? states : loadedHigherTimeframeStates,
           );
-          setSetupTimes(loadedSetupTimes);
+          setSetups(loadedSetups);
           setTrades(loadedTrades);
           setSwingMarkers(swings);
         }
@@ -123,11 +126,10 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
     };
   }, [setReplayLastIndex, timeframeMode]);
 
-  const setupOptions = [...new Map(
-    trades.map(({ setup }) => [setup.id, setup]),
-  ).values()].sort((left, right) => left.number - right.number);
+  const setupOptions = setups.map(({ id, number }) => ({ id, number }));
+  const setupTimes = new Set(setups.map(({ time }) => time));
   const filteredTrades = trades
-    .filter((trade) => !selectedSetupId || trade.setup.id === selectedSetupId)
+    .filter((trade) => !tradeSetupFilterId || trade.setup.id === tradeSetupFilterId)
     .sort((left, right) => left.ltf.marketStructure.time - right.ltf.marketStructure.time);
   const parsedTimeRange = parseBacktestTimeRange(timeRangeFrom, timeRangeTo);
   const isInTimeRange = (timestampSeconds: number) => (
@@ -142,9 +144,17 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   const htfMarketStatesByTime = new Map(
     higherTimeframeMarketStates.map((state) => [Number(state.marketStructure.time), state]),
   );
+  const setupsById = new Map(setups.map((setup) => [setup.id, setup]));
+  const selectedSetup = setups.find((setup) => setup.id === selectedSetupId);
+  const selectedSetupMarketState = selectedSetup
+    ? htfMarketStatesByTime.get(selectedSetup.time) ?? null
+    : null;
   const tradeEntries = rangeFilteredTrades.map((trade) => {
     const ltfMarketState = ltfMarketStatesByTime.get(trade.ltf.marketStructure.time);
-    const htfMarketState = htfMarketStatesByTime.get(trade.htf.marketStructure.time);
+    const setup = setupsById.get(trade.setup.id);
+    const htfMarketState = setup
+      ? htfMarketStatesByTime.get(setup.time)
+      : undefined;
     return ltfMarketState && htfMarketState
       ? { trade, ltfMarketState, htfMarketState }
       : undefined;
@@ -164,7 +174,14 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   }));
   const tradeFilteredMarketStates = tradeFilterActive && timeframeMode === 'ltf'
     ? matchedTradeMarketStates
-    : marketStates.filter((state) => isInTimeRange(Number(state.marketStructure.time)));
+    : marketStates.filter((state) => (
+      isInTimeRange(Number(state.marketStructure.time))
+      && (
+        timeframeMode !== 'ltf'
+        || !selectedSetup
+        || Number(state.marketStructure.time) >= selectedSetup.time
+      )
+    ));
   const visibleMarketStates = quickFilter === 'setup' && timeframeMode === 'htf'
     ? marketStates.filter((state) => setupTimes.has(Number(state.marketStructure.time)))
     : tradeFilteredMarketStates;
@@ -189,6 +206,19 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   const currentTradeEntry = timeframeMode === 'ltf' && tradeFilterActive
     ? matchedTradeEntries[replayIndex] ?? null
     : null;
+  useEffect(() => {
+    if (currentTradeEntry) {
+      setSelectedSetupId(currentTradeEntry.trade.setup.id);
+    }
+  }, [currentTradeEntry?.trade.setup.id, setSelectedSetupId]);
+
+  const handleSelectedSetupChange = (setupId: string) => {
+    setSelectedSetupId(setupId);
+    setReplayIndex(0);
+    if (tradeFilterActive) {
+      setTradeSetupFilterId(setupId);
+    }
+  };
   const currentTradeTime = currentTradeEntry?.trade.ltf.marketStructure.time
     ?? currentMarketState?.marketStructure.time
     ?? null;
@@ -242,15 +272,8 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
           },
         },
         htf: {
-          marketStructure: {
-            number: currentTradeEntry.htfMarketState.marketStructure.number,
-            score: currentTradeEntry.trade.htf.marketStructure.score,
-            time: currentTradeEntry.trade.htf.marketStructure.time as UTCTimestamp,
-            eventPrice: currentTradeEntry.htfMarketState.marketStructure.eventPrice,
-            event: currentTradeEntry.trade.htf.marketStructure.event,
-            bias: currentTradeEntry.trade.htf.marketStructure.bias,
-          },
-          poi: toTradeChartPoi(currentTradeEntry.trade.htf.poi),
+          marketStructure: currentTradeEntry.htfMarketState.marketStructure,
+          poi: null,
         },
         ltf: {
           marketStructure: {
@@ -280,7 +303,9 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
   const chartError = dataError ?? (
     timeframeMode === 'ltf' && tradeFilterActive && hasMissingTradeMarketState
       ? SYSTEM_CONFIG.ui.backtestReplay.tradeMarketStructureMissing
-      : null
+      : timeframeMode === 'ltf' && selectedSetupId && !selectedSetupMarketState
+        ? SYSTEM_CONFIG.ui.backtestReplay.setupMarketStructureMissing
+        : null
   );
 
   return (
@@ -297,7 +322,23 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
           seriesOptions={BACKTEST_CANDLE_SERIES_OPTIONS}
           statusLabel={SYSTEM_CONFIG.ui.chart.demoData}
           markers={swingMarkers}
-          marketState={timeframeMode === 'ltf' && tradeFilterActive ? null : currentMarketState}
+          marketStateTimeframe={timeframeMode === 'ltf'
+            && (currentTradeEntry !== null || Boolean(selectedSetupId))
+            ? 'htf'
+            : timeframeMode}
+          marketState={timeframeMode === 'ltf'
+            ? currentTradeEntry?.htfMarketState
+              ?? (selectedSetupId
+                ? selectedSetupMarketState
+                : tradeFilterActive ? null : currentMarketState)
+            : currentMarketState}
+          additionalMarketState={timeframeMode === 'ltf' && selectedSetupId && !currentTradeEntry
+            ? currentMarketState
+            : null}
+          focusAdditionalMarketState={timeframeMode === 'ltf'
+            && Boolean(selectedSetupId)
+            && !currentTradeEntry
+            && replayIndex > 0}
           tradeOverlay={tradeOverlay}
           toolbarContent={chartError
             ? <span className="chart-status" role="alert">{chartError}</span>
@@ -321,7 +362,7 @@ export function BacktestOverview({ symbol }: BacktestOverviewProps) {
           showSetupFilter={timeframeMode === 'htf'}
           setupOptions={setupOptions}
           selectedSetupId={selectedSetupId}
-          onSelectedSetupChange={setSelectedSetupId}
+          onSelectedSetupChange={handleSelectedSetupChange}
           showTradeControls={timeframeMode === 'ltf'}
           tradeFilterActive={tradeFilterActive}
           onTradeFilterChange={setTradeFilterActive}
