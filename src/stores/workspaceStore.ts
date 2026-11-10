@@ -9,11 +9,19 @@ export type BacktestTimeframe = 'htf' | 'ltf';
 export type BacktestReplaySpeed = 1 | 2 | 5 | 10;
 export type { MarketSymbol } from '../config/marketSymbols';
 
-export interface BacktestNavigationTarget {
-  setupId: string;
-  marketStructureNumber: number;
-  marketStructureTime: number;
-}
+export type BacktestNavigationTarget =
+  | {
+    type: 'marketStructure';
+    setupId: string;
+    marketStructureNumber: number;
+    marketStructureTime: number;
+  }
+  | {
+    type: 'trade';
+    setupId: string;
+    marketStructureTime: number;
+    tradeNumber: number;
+  };
 
 interface WorkspaceState {
   sidebarCollapsed: boolean;

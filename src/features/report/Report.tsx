@@ -1,6 +1,6 @@
 import {
   CalendarDays, ChartCandlestick, ChartLine, ChevronDown, Eye, Layers, List,
-  MoreHorizontal, Search,
+  MoreHorizontal, Search, X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MARKET_SYMBOLS, type MarketSymbol } from '../../config/marketSymbols';
@@ -109,6 +109,10 @@ function formatExplorerTime(timestamp: number | null): string {
   return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
 }
 
+function formatTradeDetailsTime(timestamp: number): string {
+  return new Date(timestamp * 1000).toISOString().slice(11, 19);
+}
+
 export function Report({ symbol, mode, onSetSymbol }: ReportProps) {
   const setActiveWorkspacePage = useWorkspaceStore((state) => state.setActiveWorkspacePage);
   const setBacktestNavigationTarget = useWorkspaceStore((state) => state.setBacktestNavigationTarget);
@@ -126,6 +130,7 @@ export function Report({ symbol, mode, onSetSymbol }: ReportProps) {
   const [activeReportTab, setActiveReportTab] = useState(reportTabs[0]);
   const [tradeExplorerFilter, setTradeExplorerFilter] = useState<TradeExplorerFilter>('All Trades');
   const [selectedTradeNumber, setSelectedTradeNumber] = useState<number | null>(null);
+  const [tradeDetailsOpen, setTradeDetailsOpen] = useState(false);
   const [trades, setTrades] = useState<BacktestTrade[]>([]);
   const [tradeDataLoading, setTradeDataLoading] = useState(true);
   const [tradeDataError, setTradeDataError] = useState<string | null>(null);
@@ -137,19 +142,19 @@ export function Report({ symbol, mode, onSetSymbol }: ReportProps) {
   const [setupSearch, setSetupSearch] = useState('');
   const [ltfSearch, setLtfSearch] = useState('');
   const [selectedExplorerSetupId, setSelectedExplorerSetupId] = useState<string | null>(null);
-  const [openLtfActionsNumber, setOpenLtfActionsNumber] = useState<number | null>(null);
+  const [openActionsMenu, setOpenActionsMenu] = useState<{ type: 'ltf' | 'trade'; number: number } | null>(null);
   const actionMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (openLtfActionsNumber === null) return;
+    if (openActionsMenu === null) return;
 
     const closeMenu = (event: PointerEvent) => {
       if (event.target instanceof Node && !actionMenuRef.current?.contains(event.target)) {
-        setOpenLtfActionsNumber(null);
+        setOpenActionsMenu(null);
       }
     };
     const closeMenuOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpenLtfActionsNumber(null);
+      if (event.key === 'Escape') setOpenActionsMenu(null);
     };
 
     document.addEventListener('pointerdown', closeMenu);
@@ -158,11 +163,12 @@ export function Report({ symbol, mode, onSetSymbol }: ReportProps) {
       document.removeEventListener('pointerdown', closeMenu);
       document.removeEventListener('keydown', closeMenuOnEscape);
     };
-  }, [openLtfActionsNumber]);
+  }, [openActionsMenu]);
 
   const openLtfMarketStructure = (setupId: string, structure: LtfExplorerEntry) => {
     setSelectedSetupId(setupId);
     setBacktestNavigationTarget({
+      type: 'marketStructure',
       setupId,
       marketStructureNumber: structure.number,
       marketStructureTime: structure.time,
@@ -172,6 +178,24 @@ export function Report({ symbol, mode, onSetSymbol }: ReportProps) {
     setReplayIndex(0);
     setMode('backtest');
     setActiveWorkspacePage('chart');
+    setOpenActionsMenu(null);
+  };
+
+  const openTradeChart = (trade: BacktestTrade) => {
+    setTradeDetailsOpen(false);
+    setSelectedSetupId(trade.setup.id);
+    setBacktestNavigationTarget({
+      type: 'trade',
+      setupId: trade.setup.id,
+      marketStructureTime: trade.ltf.marketStructure.time,
+      tradeNumber: trade.number,
+    });
+    setBacktestTimeRange({ backtestTimeRangeFrom: '', backtestTimeRangeTo: '' });
+    setBacktestTimeframe('ltf');
+    setReplayIndex(0);
+    setMode('backtest');
+    setActiveWorkspacePage('chart');
+    setOpenActionsMenu(null);
   };
 
   useEffect(() => {
@@ -659,10 +683,11 @@ export function Report({ symbol, mode, onSetSymbol }: ReportProps) {
             <p className="report-explorer__empty" role="alert">{tradeDataError}</p>
           ) : (
             <>
+              <div className={`report-explorer__content${tradeDetailsOpen && selectedTrade ? ' report-explorer__content--details-open' : ''}`}>
               <div className="report-trade-table-wrap">
                 <table className="report-trade-table">
                   <thead>
-                    <tr><th>ID</th><th>Setup</th><th>Direction</th><th>Result</th><th>R</th></tr>
+                    <tr><th>ID</th><th>Setup</th><th>Direction</th><th>Result</th><th>R</th><th>Actions</th></tr>
                   </thead>
                   <tbody>
                     {explorerTrades.map((trade) => {
@@ -702,43 +727,178 @@ export function Report({ symbol, mode, onSetSymbol }: ReportProps) {
                           <td className={tradeR === null ? '' : tradeR >= 0 ? 'positive' : 'negative'}>
                             {tradeR === null ? '—' : `${tradeR > 0 ? '+' : ''}${tradeR.toFixed(1)}R`}
                           </td>
+                          <td className="report-ltf-explorer__actions-cell">
+                            <div
+                              className="report-ltf-explorer__actions"
+                              ref={openActionsMenu?.type === 'trade' && openActionsMenu.number === trade.number
+                                ? actionMenuRef
+                                : null}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Escape') setOpenActionsMenu(null);
+                              }}
+                            >
+                              <button
+                                type="button"
+                                className="report-ltf-explorer__actions-trigger"
+                                aria-label={`Actions for trade ${trade.number}`}
+                                aria-haspopup="menu"
+                                aria-expanded={openActionsMenu?.type === 'trade' && openActionsMenu.number === trade.number}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setOpenActionsMenu(
+                                    openActionsMenu?.type === 'trade' && openActionsMenu.number === trade.number
+                                      ? null
+                                      : { type: 'trade', number: trade.number },
+                                  );
+                                }}
+                              >
+                                <MoreHorizontal size={15} aria-hidden="true" />
+                              </button>
+                              {openActionsMenu?.type === 'trade' && openActionsMenu.number === trade.number && (
+                                <div className="report-ltf-explorer__actions-menu" role="menu" aria-label={`Trade ${trade.number} actions`}>
+                                  <div className="report-ltf-explorer__actions-heading">
+                                    #{String(trade.number).padStart(3, '0')} · ACTIONS
+                                  </div>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="report-ltf-explorer__action-item"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openTradeChart(trade);
+                                    }}
+                                  >
+                                    <ChartCandlestick size={13} aria-hidden="true" />
+                                    <span>Open Trade Chart</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="report-ltf-explorer__action-item"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setSelectedTradeNumber(trade.number);
+                                      setTradeDetailsOpen(true);
+                                      setOpenActionsMenu(null);
+                                    }}
+                                  >
+                                    <Eye size={13} aria-hidden="true" />
+                                    <span>View Trade Details</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="report-ltf-explorer__action-item"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setTradeDetailsOpen(false);
+                                      setSelectedExplorerSetupId(trade.setup.id);
+                                      setSetupSearch('');
+                                      setLtfSearch('');
+                                      setActiveReportTab('LTF Setup Explorer');
+                                      setOpenActionsMenu(null);
+                                    }}
+                                  >
+                                    <List size={13} aria-hidden="true" />
+                                    <span>View Setup</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       );
                     })}
                     {explorerTrades.length === 0 && (
-                      <tr><td className="report-trade-table__empty" colSpan={5}>No trades match the selected filters.</td></tr>
+                      <tr><td className="report-trade-table__empty" colSpan={6}>No trades match the selected filters.</td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
 
-              {selectedTrade && (
-                <section className="report-selected-trade" aria-labelledby="selected-trade-title">
-                  <h4 id="selected-trade-title">Selected Trade: #{String(selectedTrade.number).padStart(3, '0')}</h4>
-                  <div className="report-trade-details">
-                    <div><span>Entry</span><strong>{selectedTrade.entryPrice.toLocaleString('en-US')}</strong></div>
-                    <div><span>Exit</span><strong>{selectedTrade.exitPrice.toLocaleString('en-US')}</strong></div>
-                    <div>
-                      <span>Risk</span>
-                      <strong>{selectedTrade.openingBalance > 0
-                        ? `${((Math.abs(selectedTrade.entryPrice - selectedTrade.stopLoss) * selectedTrade.volume / selectedTrade.openingBalance) * 100).toFixed(1)}%`
-                        : '—'}</strong>
+                {tradeDetailsOpen && selectedTrade && (
+                  <aside className="report-trade-drawer" aria-labelledby="trade-details-title">
+                    <header className="report-trade-drawer__header">
+                      <div>
+                        <h4 id="trade-details-title">Trade Details</h4>
+                        <p>{selectedTrade.symbol.replace(/-/g, '')} · {selectedTrade.side} · 5m</p>
+                      </div>
+                      <div className="report-trade-drawer__header-actions">
+                        <span className="report-trade-drawer__status">
+                          {selectedTrade.status.charAt(0).toUpperCase() + selectedTrade.status.slice(1).toLowerCase()}
+                        </span>
+                        <button
+                          type="button"
+                          className="report-trade-drawer__close"
+                          aria-label="Close Trade Details"
+                          onClick={() => setTradeDetailsOpen(false)}
+                        >
+                          <X size={14} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </header>
+
+                    <div className="report-trade-drawer__body">
+                      <section className="report-trade-drawer__section" aria-labelledby="trade-overview-title">
+                        <h5 id="trade-overview-title">Trade Overview</h5>
+                        <dl className="report-trade-drawer__overview">
+                          <div><dt>Trade ID</dt><dd>TRD-{String(selectedTrade.number).padStart(6, '0')}</dd></div>
+                          <div><dt>Setup ID</dt><dd>STP-{String(selectedTrade.setup.number).padStart(6, '0')}</dd></div>
+                          <div>
+                            <dt>Direction</dt>
+                            <dd className={selectedTrade.side === 'LONG' ? 'positive' : 'negative'}>{selectedTrade.side}</dd>
+                          </div>
+                          <div><dt>Timeframe</dt><dd>5m</dd></div>
+                          <div><dt>Entry Time</dt><dd>{formatTradeDetailsTime(selectedTrade.time)}</dd></div>
+                          <div><dt>Exit Time</dt><dd>{formatTradeDetailsTime(selectedTrade.endTime)}</dd></div>
+                        </dl>
+                      </section>
+
+                      <section className="report-trade-drawer__section" aria-labelledby="trade-execution-title">
+                        <h5 id="trade-execution-title">Execution</h5>
+                        <table className="report-trade-drawer__execution">
+                          <thead><tr><th>Field</th><th>Value</th></tr></thead>
+                          <tbody>
+                            <tr><td>Entry Price</td><td>{selectedTrade.entryPrice.toLocaleString('en-US', { maximumFractionDigits: 8 })}</td></tr>
+                            <tr><td>Exit Price</td><td>{selectedTrade.exitPrice.toLocaleString('en-US', { maximumFractionDigits: 8 })}</td></tr>
+                            <tr><td>Stop Loss</td><td>{selectedTrade.stopLoss.toLocaleString('en-US', { maximumFractionDigits: 8 })}</td></tr>
+                            <tr><td>Take Profit</td><td>{selectedTrade.pnl > 0
+                              ? selectedTrade.exitPrice.toLocaleString('en-US', { maximumFractionDigits: 8 })
+                              : '—'}</td></tr>
+                            <tr><td>Quantity</td><td>{selectedTrade.volume.toLocaleString('en-US', { maximumFractionDigits: 8 })}</td></tr>
+                          </tbody>
+                        </table>
+                      </section>
+
+                      <section className="report-trade-drawer__section" aria-labelledby="trade-performance-title">
+                        <h5 id="trade-performance-title">Risk &amp; Performance</h5>
+                        <dl className="report-trade-drawer__performance">
+                          <div>
+                            <dt>Risk/Reward</dt>
+                            <dd>{selectedTradeR === null ? '—' : `${selectedTradeR > 0 ? '+' : ''}${selectedTradeR.toFixed(2)}R`}</dd>
+                          </div>
+                          <div>
+                            <dt>PnL</dt>
+                            <dd className={selectedTrade.pnl >= 0 ? 'positive' : 'negative'}>
+                              {`${selectedTrade.pnl > 0 ? '+' : ''}${USDT_FORMAT.format(selectedTrade.pnl)} USDT`}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Risk Amount</dt>
+                            <dd>{`${USDT_FORMAT.format(Math.abs(selectedTrade.entryPrice - selectedTrade.stopLoss) * selectedTrade.volume)} USDT`}</dd>
+                          </div>
+                          <div>
+                            <dt>Return</dt>
+                            <dd className={selectedTrade.pnl >= 0 ? 'positive' : 'negative'}>
+                              {selectedTradeR === null ? '—' : `${selectedTradeR > 0 ? '+' : ''}${selectedTradeR.toFixed(2)}R`}
+                            </dd>
+                          </div>
+                        </dl>
+                      </section>
                     </div>
-                    <div>
-                      <span>Result</span>
-                      <strong className={selectedTrade.pnl >= 0 ? 'positive' : 'negative'}>
-                        {selectedTradeR === null ? '—' : `${selectedTradeR > 0 ? '+' : ''}${selectedTradeR.toFixed(1)}R`}
-                      </strong>
-                    </div>
-                    <div>
-                      <span>P&amp;L</span>
-                      <strong className={selectedTrade.pnl >= 0 ? 'positive' : 'negative'}>
-                        {`${selectedTrade.pnl > 0 ? '+' : ''}${USDT_FORMAT.format(selectedTrade.pnl)} USDT`}
-                      </strong>
-                    </div>
-                  </div>
-                </section>
-              )}
+                  </aside>
+                )}
+              </div>
             </>
           )}
         </section>
@@ -905,9 +1065,11 @@ export function Report({ symbol, mode, onSetSymbol }: ReportProps) {
                             <td className="report-ltf-explorer__actions-cell">
                               <div
                                 className="report-ltf-explorer__actions"
-                                ref={openLtfActionsNumber === structure.number ? actionMenuRef : null}
+                                ref={openActionsMenu?.type === 'ltf' && openActionsMenu.number === structure.number
+                                  ? actionMenuRef
+                                  : null}
                                 onKeyDown={(event) => {
-                                  if (event.key === 'Escape') setOpenLtfActionsNumber(null);
+                                  if (event.key === 'Escape') setOpenActionsMenu(null);
                                 }}
                               >
                                 <button
@@ -915,14 +1077,16 @@ export function Report({ symbol, mode, onSetSymbol }: ReportProps) {
                                   className="report-ltf-explorer__actions-trigger"
                                   aria-label={`Actions for ${structure.id}`}
                                   aria-haspopup="menu"
-                                  aria-expanded={openLtfActionsNumber === structure.number}
-                                  onClick={() => setOpenLtfActionsNumber(
-                                    openLtfActionsNumber === structure.number ? null : structure.number,
+                                  aria-expanded={openActionsMenu?.type === 'ltf' && openActionsMenu.number === structure.number}
+                                  onClick={() => setOpenActionsMenu(
+                                    openActionsMenu?.type === 'ltf' && openActionsMenu.number === structure.number
+                                      ? null
+                                      : { type: 'ltf', number: structure.number },
                                   )}
                                 >
                                   <MoreHorizontal size={15} aria-hidden="true" />
                                 </button>
-                                {openLtfActionsNumber === structure.number && (
+                                {openActionsMenu?.type === 'ltf' && openActionsMenu.number === structure.number && (
                                   <div className="report-ltf-explorer__actions-menu" role="menu" aria-label={`${structure.id} actions`}>
                                     <div className="report-ltf-explorer__actions-heading">{structure.id} · ACTIONS</div>
                                     <button type="button" role="menuitem" className="report-ltf-explorer__action-item" disabled>
