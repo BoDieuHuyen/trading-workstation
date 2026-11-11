@@ -163,10 +163,6 @@ export function BacktestReplayControls({
   }, [setupDropdownOpen]);
 
   useEffect(() => {
-    if (!tradeFilterActive) setSetupDropdownOpen(false);
-  }, [tradeFilterActive]);
-
-  useEffect(() => {
     if (setupDropdownOpen) {
       setupOptionsRef.current
         ?.querySelector<HTMLButtonElement>('[aria-selected="true"]')
@@ -370,7 +366,6 @@ export function BacktestReplayControls({
             aria-haspopup="listbox"
             aria-controls="backtest-replay-setup-options"
             aria-expanded={setupDropdownOpen}
-            disabled={!hasReplayData || !tradeFilterActive}
             onClick={() => setSetupDropdownOpen(!setupDropdownOpen)}
             onKeyDown={(event) => {
               if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {

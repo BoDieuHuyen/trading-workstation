@@ -1,8 +1,8 @@
 import {
-  Activity, ChevronDown, CircleHelp, Clock3, Columns2, Download, LayoutDashboard,
+  Activity, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Clock3, Columns2, Download, LayoutDashboard,
   FileText, PanelLeftClose, Search, Settings, Star, Table2,
 } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { MARKET_SYMBOLS } from '../../config/marketSymbols';
 import { SYSTEM_CONFIG } from '../../config/system';
 import { useWorkspaceStore } from '../../stores/workspaceStore';
@@ -19,11 +19,14 @@ export function TradingWorkspaceView({
   activeWorkspacePage,
   mode,
   selectedSymbol,
+  canGoBack,
+  canGoForward,
   klines,
   onToggleSidebar,
   onSetActiveTab,
-  onSetActiveWorkspacePage,
-  onSetMode,
+  onNavigateToWorkspace,
+  onGoBack,
+  onGoForward,
   onSetSelectedSymbol,
 }: TradingWorkspaceViewProps) {
   const selectedMarket = MARKET_SYMBOLS[selectedSymbol];
@@ -33,12 +36,29 @@ export function TradingWorkspaceView({
   const replayPlaying = useWorkspaceStore((state) => state.replayPlaying);
   const replaySpeed = useWorkspaceStore((state) => state.replaySpeed);
   const advanceReplay = useWorkspaceStore((state) => state.advanceReplay);
+  const [hasVisitedReport, setHasVisitedReport] = useState(activeWorkspacePage === 'eventFilters');
+  const [hasVisitedBacktest, setHasVisitedBacktest] = useState(
+    activeWorkspacePage === 'chart' && mode === 'backtest',
+  );
+  const [hasVisitedMarket, setHasVisitedMarket] = useState(
+    activeWorkspacePage === 'chart' && mode === 'live',
+  );
 
   useEffect(() => {
     if (mode !== 'backtest' || !replayPlaying) return;
     const intervalId = window.setInterval(advanceReplay, 1000 / replaySpeed);
     return () => window.clearInterval(intervalId);
   }, [advanceReplay, mode, replayPlaying, replaySpeed]);
+
+  useEffect(() => {
+    if (activeWorkspacePage === 'eventFilters') {
+      setHasVisitedReport(true);
+    } else if (mode === 'backtest') {
+      setHasVisitedBacktest(true);
+    } else {
+      setHasVisitedMarket(true);
+    }
+  }, [activeWorkspacePage, mode]);
 
   return (
     <main className="workstation">
@@ -59,7 +79,7 @@ export function TradingWorkspaceView({
               type="button"
               className={mode === id ? 'mode-active' : ''}
               aria-pressed={mode === id}
-              onClick={() => onSetMode(id)}
+              onClick={() => onNavigateToWorkspace({ mode: id })}
             >
               {id === 'live' && <span className={`live-dot${mode === id ? '' : ' live-dot--inactive'}`} />} {label}
             </button>
@@ -105,14 +125,14 @@ export function TradingWorkspaceView({
               <button
                 className={`sidebar-link${activeWorkspacePage === 'chart' ? ' sidebar-link--active' : ''}`}
                 aria-current={activeWorkspacePage === 'chart' ? 'page' : undefined}
-                onClick={() => onSetActiveWorkspacePage('chart')}
+                onClick={() => onNavigateToWorkspace({ activeWorkspacePage: 'chart' })}
               >
                 <Columns2 size={15} /> {SYSTEM_CONFIG.ui.sidebar.chart}
               </button>
               <button
                 className={`sidebar-link${activeWorkspacePage === 'eventFilters' ? ' sidebar-link--active' : ''}`}
                 aria-current={activeWorkspacePage === 'eventFilters' ? 'page' : undefined}
-                onClick={() => onSetActiveWorkspacePage('eventFilters')}
+                onClick={() => onNavigateToWorkspace({ activeWorkspacePage: 'eventFilters' })}
               >
                 <FileText size={15} /> {SYSTEM_CONFIG.ui.sidebar.report}
               </button>
@@ -137,19 +157,55 @@ export function TradingWorkspaceView({
                   ? SYSTEM_CONFIG.ui.page.backtestOverview
                   : SYSTEM_CONFIG.ui.page.marketOverview} <span className="heading-dot">·</span> <span className="muted-heading">{selectedSymbol}</span></h1>
             </div>
+            <div className="page-heading__navigation">
+              <button
+                type="button"
+                className="page-navigation-button"
+                aria-label={SYSTEM_CONFIG.ui.page.back}
+                title={SYSTEM_CONFIG.ui.page.back}
+                disabled={!canGoBack}
+                onClick={onGoBack}
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button
+                type="button"
+                className="page-navigation-button"
+                aria-label={SYSTEM_CONFIG.ui.page.next}
+                title={SYSTEM_CONFIG.ui.page.next}
+                disabled={!canGoForward}
+                onClick={onGoForward}
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
 
-          {activeWorkspacePage === 'eventFilters' ? (
-            <Report symbol={selectedSymbol} onSetSymbol={onSetSelectedSymbol} />
-          ) : mode === 'backtest' ? (
-            <BacktestOverview symbol={selectedSymbol} />
-          ) : (
-            <MarketOverview
-              symbol={selectedSymbol}
-              activeTab={activeTab}
-              kline={selectedKline}
-              onSetActiveTab={onSetActiveTab}
-            />
+          {hasVisitedReport && (
+            <div className="workspace-screen" hidden={activeWorkspacePage !== 'eventFilters'}>
+              <Report symbol={selectedSymbol} mode={mode} onSetSymbol={onSetSelectedSymbol} />
+            </div>
+          )}
+          {hasVisitedBacktest && (
+            <div
+              className="workspace-screen"
+              hidden={activeWorkspacePage !== 'chart' || mode !== 'backtest'}
+            >
+              <BacktestOverview symbol={selectedSymbol} />
+            </div>
+          )}
+          {hasVisitedMarket && (
+            <div
+              className="workspace-screen"
+              hidden={activeWorkspacePage !== 'chart' || mode !== 'live'}
+            >
+              <MarketOverview
+                symbol={selectedSymbol}
+                activeTab={activeTab}
+                kline={selectedKline}
+                onSetActiveTab={onSetActiveTab}
+              />
+            </div>
           )}
         </section>
       </div>

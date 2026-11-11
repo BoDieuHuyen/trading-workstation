@@ -1,21 +1,59 @@
-import { CalendarDays, ChevronDown } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import {
+  CalendarDays, ChartCandlestick, ChartLine, ChevronDown, Eye, Layers, List,
+  MoreHorizontal, Search, X,
+} from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { MARKET_SYMBOLS, type MarketSymbol } from '../../config/marketSymbols';
-import { SYSTEM_CONFIG } from '../../config/system';
-import { loadBacktestTrades } from '../backtest-overview/backtestData';
+import { SYSTEM_CONFIG, type TradingMode } from '../../config/system';
+import { useWorkspaceStore } from '../../stores/workspaceStore';
+import {
+  loadBacktestMarketStates,
+  loadBacktestSetups,
+  loadBacktestTrades,
+} from '../backtest-overview/backtestData';
 import type { BacktestTrade } from '../backtest-overview/backtestData';
 
 interface ReportProps {
   symbol: MarketSymbol;
+  mode: TradingMode;
   onSetSymbol: (symbol: MarketSymbol) => void;
 }
 
 const setupTypes = ['CHOCH + OB', 'BOS + OB', 'CHOCH + FVG', 'Liquidity Sweep'];
 const initialSetupTypes = ['CHOCH + OB', 'BOS + OB'];
 const timeframes = ['1m', '5m', '15m', '1h', '4h', '1d'];
-const reportTabs = ['Overview', 'Performance', 'Setup Analysis', 'Trade Explorer', 'Risk Analysis'];
+const reportTabs = ['Trade Explorer', 'LTF Setup Explorer', 'Performance', 'Setup Analysis', 'Risk Analysis', 'Overview'];
 const tradeExplorerFilters = ['All Trades', 'Win', 'Loss', 'Long', 'Short'] as const;
 type TradeExplorerFilter = (typeof tradeExplorerFilters)[number];
+type ExplorerBias = 'BULLISH' | 'BEARISH';
+
+interface LtfExplorerEntry {
+  id: string;
+  number: number;
+  event: 'bos' | 'choch';
+  bias: ExplorerBias;
+  previousBias: ExplorerBias | null;
+  time: number;
+  invalidAt: number | null;
+  poiCount: number;
+  tradeCount: number;
+}
+
+interface SetupExplorerEntry {
+  id: string;
+  number: number;
+  time: number;
+  endTime: number | null;
+  direction: 'Bullish' | 'Bearish';
+  htfEvent: 'bos' | 'choch' | null;
+  htfNumber: number | null;
+  ltfMarketStructures: LtfExplorerEntry[];
+}
+
+const USDT_FORMAT = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 function isMarketSymbol(value: string): value is MarketSymbol {
   return Object.values(MARKET_SYMBOLS).some((market) => market.symbol === value);
@@ -65,7 +103,23 @@ function formatTradeDate(timestamp: number): string {
   return `${day}/${month}/${date.getUTCFullYear()}`;
 }
 
-export function Report({ symbol, onSetSymbol }: ReportProps) {
+function formatExplorerTime(timestamp: number | null): string {
+  if (timestamp === null) return '—';
+  const date = new Date(timestamp * 1000);
+  return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+}
+
+function formatTradeDetailsTime(timestamp: number): string {
+  return new Date(timestamp * 1000).toISOString().slice(11, 19);
+}
+
+export function Report({ symbol, mode, onSetSymbol }: ReportProps) {
+  const navigateToWorkspace = useWorkspaceStore((state) => state.navigateToWorkspace);
+  const setBacktestNavigationTarget = useWorkspaceStore((state) => state.setBacktestNavigationTarget);
+  const setBacktestTimeRange = useWorkspaceStore((state) => state.setBacktestTimeRange);
+  const setBacktestTimeframe = useWorkspaceStore((state) => state.setBacktestTimeframe);
+  const setReplayIndex = useWorkspaceStore((state) => state.setReplayIndex);
+  const setSelectedSetupId = useWorkspaceStore((state) => state.setSelectedSetupId);
   const [direction, setDirection] = useState('All');
   const [result, setResult] = useState('All');
   const [timeframe, setTimeframe] = useState('All');
@@ -75,9 +129,71 @@ export function Report({ symbol, onSetSymbol }: ReportProps) {
   const [activeReportTab, setActiveReportTab] = useState(reportTabs[0]);
   const [tradeExplorerFilter, setTradeExplorerFilter] = useState<TradeExplorerFilter>('All Trades');
   const [selectedTradeNumber, setSelectedTradeNumber] = useState<number | null>(null);
+  const [tradeDetailsOpen, setTradeDetailsOpen] = useState(false);
   const [trades, setTrades] = useState<BacktestTrade[]>([]);
   const [tradeDataLoading, setTradeDataLoading] = useState(true);
   const [tradeDataError, setTradeDataError] = useState<string | null>(null);
+  const [explorerSetups, setExplorerSetups] = useState<Awaited<ReturnType<typeof loadBacktestSetups>>>([]);
+  const [explorerHtfStates, setExplorerHtfStates] = useState<Awaited<ReturnType<typeof loadBacktestMarketStates>>>([]);
+  const [explorerLtfStates, setExplorerLtfStates] = useState<Awaited<ReturnType<typeof loadBacktestMarketStates>>>([]);
+  const [explorerDataLoading, setExplorerDataLoading] = useState(true);
+  const [explorerDataError, setExplorerDataError] = useState<string | null>(null);
+  const [setupSearch, setSetupSearch] = useState('');
+  const [ltfSearch, setLtfSearch] = useState('');
+  const [selectedExplorerSetupId, setSelectedExplorerSetupId] = useState<string | null>(null);
+  const [openActionsMenu, setOpenActionsMenu] = useState<{ type: 'ltf' | 'trade'; number: number } | null>(null);
+  const actionMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (openActionsMenu === null) return;
+
+    const closeMenu = (event: PointerEvent) => {
+      if (event.target instanceof Node && !actionMenuRef.current?.contains(event.target)) {
+        setOpenActionsMenu(null);
+      }
+    };
+    const closeMenuOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpenActionsMenu(null);
+    };
+
+    document.addEventListener('pointerdown', closeMenu);
+    document.addEventListener('keydown', closeMenuOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeMenu);
+      document.removeEventListener('keydown', closeMenuOnEscape);
+    };
+  }, [openActionsMenu]);
+
+  const openLtfMarketStructure = (setupId: string, structure: LtfExplorerEntry) => {
+    navigateToWorkspace({ mode: 'backtest', activeWorkspacePage: 'chart' });
+    setSelectedSetupId(setupId);
+    setBacktestNavigationTarget({
+      type: 'marketStructure',
+      setupId,
+      marketStructureNumber: structure.number,
+      marketStructureTime: structure.time,
+    });
+    setBacktestTimeRange({ backtestTimeRangeFrom: '', backtestTimeRangeTo: '' });
+    setBacktestTimeframe('ltf');
+    setReplayIndex(0);
+    setOpenActionsMenu(null);
+  };
+
+  const openTradeChart = (trade: BacktestTrade) => {
+    setTradeDetailsOpen(false);
+    navigateToWorkspace({ mode: 'backtest', activeWorkspacePage: 'chart' });
+    setSelectedSetupId(trade.setup.id);
+    setBacktestNavigationTarget({
+      type: 'trade',
+      setupId: trade.setup.id,
+      marketStructureTime: trade.ltf.marketStructure.time,
+      tradeNumber: trade.number,
+    });
+    setBacktestTimeRange({ backtestTimeRangeFrom: '', backtestTimeRangeTo: '' });
+    setBacktestTimeframe('ltf');
+    setReplayIndex(0);
+    setOpenActionsMenu(null);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -90,6 +206,32 @@ export function Report({ symbol, onSetSymbol }: ReportProps) {
       },
     ).finally(() => {
       if (!cancelled) setTradeDataLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      loadBacktestSetups(),
+      loadBacktestMarketStates('htf'),
+      loadBacktestMarketStates('ltf'),
+    ]).then(
+      ([setups, htfStates, ltfStates]) => {
+        if (!cancelled) {
+          setExplorerSetups(setups);
+          setExplorerHtfStates(htfStates);
+          setExplorerLtfStates(ltfStates);
+        }
+      },
+      (error: unknown) => {
+        if (!cancelled) setExplorerDataError(error instanceof Error ? error.message : String(error));
+      },
+    ).finally(() => {
+      if (!cancelled) setExplorerDataLoading(false);
     });
 
     return () => {
@@ -238,6 +380,89 @@ export function Report({ symbol, onSetSymbol }: ReportProps) {
       }
     })
     .sort((left, right) => left.number - right.number), [filteredTrades, tradeExplorerFilter]);
+  const setupExplorerRows = useMemo(() => {
+    const symbolCode = symbol.replace(/-/g, '').toUpperCase();
+    const setupsForSymbol = explorerSetups
+      .filter((setup) => setup.symbol.replace(/-/g, '').toUpperCase() === symbolCode)
+      .sort((left, right) => left.time - right.time);
+    const htfStatesByTime = new Map(
+      explorerHtfStates.map((state) => [Number(state.marketStructure.time), state]),
+    );
+    const ltfStates = [...explorerLtfStates]
+      .sort((left, right) => Number(left.marketStructure.time) - Number(right.marketStructure.time));
+    const ltfStateIndexes = new Map(
+      ltfStates.map((state, index) => [Number(state.marketStructure.time), index]),
+    );
+    const tradeCounts = new Map<string, number>();
+
+    for (const trade of trades) {
+      if (trade.symbol.replace(/-/g, '').toUpperCase() !== symbolCode) continue;
+      const key = `${trade.setup.id}:${trade.ltf.marketStructure.time}`;
+      tradeCounts.set(key, (tradeCounts.get(key) ?? 0) + 1);
+    }
+
+    return setupsForSymbol.map((setup, setupIndex): SetupExplorerEntry => {
+      const nextSetupTime = setupsForSymbol[setupIndex + 1]?.time ?? Number.POSITIVE_INFINITY;
+      const intervalEnd = Math.min(setup.endTime ?? Number.POSITIVE_INFINITY, nextSetupTime);
+      const htfState = htfStatesByTime.get(setup.time);
+      const ltfMarketStructures = ltfStates
+        .filter((state) => (
+          Number(state.marketStructure.time) >= setup.time
+          && Number(state.marketStructure.time) < intervalEnd
+        ))
+        .map((state): LtfExplorerEntry => {
+          const marketStructureTime = Number(state.marketStructure.time);
+          const stateIndex = ltfStateIndexes.get(marketStructureTime);
+          const previousBias = stateIndex !== undefined && stateIndex > 0
+            ? ltfStates[stateIndex - 1].marketStructure.bias
+            : null;
+          const invalidationTimes = state.pois
+            .map((poi) => poi.endTime === null ? null : Number(poi.endTime))
+            .filter((time): time is number => time !== null && Number.isFinite(time));
+          const invalidAt = state.pois.length > 0 && invalidationTimes.length === state.pois.length
+            ? Math.max(...invalidationTimes)
+            : null;
+
+          return {
+            id: `LTF-${String(state.marketStructure.number).padStart(3, '0')}`,
+            number: state.marketStructure.number,
+            event: state.marketStructure.event,
+            bias: state.marketStructure.bias,
+            previousBias,
+            time: marketStructureTime,
+            invalidAt,
+            poiCount: state.pois.length,
+            tradeCount: tradeCounts.get(`${setup.id}:${marketStructureTime}`) ?? 0,
+          };
+        });
+
+      return {
+        id: setup.id,
+        number: setup.number,
+        time: setup.time,
+        endTime: setup.endTime,
+        direction: setup.side === 'LONG' ? 'Bullish' : 'Bearish',
+        htfEvent: htfState?.marketStructure.event ?? null,
+        htfNumber: htfState?.marketStructure.number ?? null,
+        ltfMarketStructures,
+      };
+    });
+  }, [explorerHtfStates, explorerLtfStates, explorerSetups, symbol, trades]);
+  const filteredSetupExplorerRows = useMemo(() => {
+    const query = setupSearch.trim().toLowerCase();
+    return setupExplorerRows.filter((setup) => (
+      !query
+      || `s-${String(setup.number).padStart(3, '0')}`.includes(query)
+      || setup.id.toLowerCase().includes(query)
+    ));
+  }, [setupExplorerRows, setupSearch]);
+  const selectedSetupExplorerRow = filteredSetupExplorerRows.find(
+    (setup) => setup.id === selectedExplorerSetupId,
+  ) ?? null;
+  const filteredLtfExplorerRows = selectedSetupExplorerRow?.ltfMarketStructures.filter((structure) => (
+    !ltfSearch.trim()
+    || structure.id.toLowerCase().includes(ltfSearch.trim().toLowerCase())
+  )) ?? [];
   const selectedTrade = explorerTrades.find((trade) => trade.number === selectedTradeNumber)
     ?? explorerTrades[0]
     ?? null;
@@ -263,7 +488,7 @@ export function Report({ symbol, onSetSymbol }: ReportProps) {
         <aside className="report-summary" aria-labelledby="report-summary-title">
           <header className="report-summary__header">
             <div>
-              <h2 id="report-summary-title">Backtest Report</h2>
+              <h2 id="report-summary-title">{mode === 'backtest' ? 'Backtest Report' : 'Report'}</h2>
               <p>{symbol} · {timeframe === 'All' ? '5m' : timeframe} · {reportStats.dateRange}</p>
             </div>
             <span className={`report-summary__status${tradeDataError ? ' report-summary__status--error' : ''}`}>
@@ -455,17 +680,30 @@ export function Report({ symbol, onSetSymbol }: ReportProps) {
             <p className="report-explorer__empty" role="alert">{tradeDataError}</p>
           ) : (
             <>
+              <div className={`report-explorer__content${tradeDetailsOpen && selectedTrade ? ' report-explorer__content--details-open' : ''}`}>
               <div className="report-trade-table-wrap">
                 <table className="report-trade-table">
                   <thead>
-                    <tr><th>ID</th><th>Setup</th><th>Direction</th><th>Result</th><th>R</th></tr>
+                    <tr><th>ID</th><th>Setup</th><th>Direction</th><th>Result</th><th>R</th><th>Actions</th></tr>
                   </thead>
                   <tbody>
                     {explorerTrades.map((trade) => {
                       const tradeR = getTradeR(trade);
                       const tradeResult = getTradeResult(trade);
                       return (
-                        <tr className={selectedTrade?.number === trade.number ? 'report-trade-row--selected' : ''} key={trade.number}>
+                        <tr
+                          className={selectedTrade?.number === trade.number ? 'report-trade-row--selected' : ''}
+                          key={trade.number}
+                          tabIndex={0}
+                          aria-selected={selectedTrade?.number === trade.number}
+                          onClick={() => setSelectedTradeNumber(trade.number)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              setSelectedTradeNumber(trade.number);
+                            }
+                          }}
+                        >
                           <td>
                             <button
                               type="button"
@@ -486,42 +724,415 @@ export function Report({ symbol, onSetSymbol }: ReportProps) {
                           <td className={tradeR === null ? '' : tradeR >= 0 ? 'positive' : 'negative'}>
                             {tradeR === null ? '—' : `${tradeR > 0 ? '+' : ''}${tradeR.toFixed(1)}R`}
                           </td>
+                          <td className="report-ltf-explorer__actions-cell">
+                            <div
+                              className="report-ltf-explorer__actions"
+                              ref={openActionsMenu?.type === 'trade' && openActionsMenu.number === trade.number
+                                ? actionMenuRef
+                                : null}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Escape') setOpenActionsMenu(null);
+                              }}
+                            >
+                              <button
+                                type="button"
+                                className="report-ltf-explorer__actions-trigger"
+                                aria-label={`Actions for trade ${trade.number}`}
+                                aria-haspopup="menu"
+                                aria-expanded={openActionsMenu?.type === 'trade' && openActionsMenu.number === trade.number}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setOpenActionsMenu(
+                                    openActionsMenu?.type === 'trade' && openActionsMenu.number === trade.number
+                                      ? null
+                                      : { type: 'trade', number: trade.number },
+                                  );
+                                }}
+                              >
+                                <MoreHorizontal size={15} aria-hidden="true" />
+                              </button>
+                              {openActionsMenu?.type === 'trade' && openActionsMenu.number === trade.number && (
+                                <div className="report-ltf-explorer__actions-menu" role="menu" aria-label={`Trade ${trade.number} actions`}>
+                                  <div className="report-ltf-explorer__actions-heading">
+                                    #{String(trade.number).padStart(3, '0')} · ACTIONS
+                                  </div>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="report-ltf-explorer__action-item"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openTradeChart(trade);
+                                    }}
+                                  >
+                                    <ChartCandlestick size={13} aria-hidden="true" />
+                                    <span>Open Trade Chart</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="report-ltf-explorer__action-item"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setSelectedTradeNumber(trade.number);
+                                      setTradeDetailsOpen(true);
+                                      setOpenActionsMenu(null);
+                                    }}
+                                  >
+                                    <Eye size={13} aria-hidden="true" />
+                                    <span>View Trade Details</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="report-ltf-explorer__action-item"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setTradeDetailsOpen(false);
+                                      setSelectedExplorerSetupId(trade.setup.id);
+                                      setSetupSearch('');
+                                      setLtfSearch('');
+                                      setActiveReportTab('LTF Setup Explorer');
+                                      setOpenActionsMenu(null);
+                                    }}
+                                  >
+                                    <List size={13} aria-hidden="true" />
+                                    <span>View Setup</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       );
                     })}
                     {explorerTrades.length === 0 && (
-                      <tr><td className="report-trade-table__empty" colSpan={5}>No trades match the selected filters.</td></tr>
+                      <tr><td className="report-trade-table__empty" colSpan={6}>No trades match the selected filters.</td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
 
-              {selectedTrade && (
-                <section className="report-selected-trade" aria-labelledby="selected-trade-title">
-                  <h4 id="selected-trade-title">Selected Trade: #{String(selectedTrade.number).padStart(3, '0')}</h4>
-                  <div className="report-trade-details">
-                    <div><span>Entry</span><strong>{selectedTrade.entryPrice.toLocaleString('en-US')}</strong></div>
-                    <div><span>Exit</span><strong>{selectedTrade.exitPrice.toLocaleString('en-US')}</strong></div>
-                    <div>
-                      <span>Risk</span>
-                      <strong>{selectedTrade.openingBalance > 0
-                        ? `${((Math.abs(selectedTrade.entryPrice - selectedTrade.stopLoss) * selectedTrade.volume / selectedTrade.openingBalance) * 100).toFixed(1)}%`
-                        : '—'}</strong>
+                {tradeDetailsOpen && selectedTrade && (
+                  <aside className="report-trade-drawer" aria-labelledby="trade-details-title">
+                    <header className="report-trade-drawer__header">
+                      <div>
+                        <h4 id="trade-details-title">Trade Details</h4>
+                        <p>{selectedTrade.symbol.replace(/-/g, '')} · {selectedTrade.side} · 5m</p>
+                      </div>
+                      <div className="report-trade-drawer__header-actions">
+                        <span className="report-trade-drawer__status">
+                          {selectedTrade.status.charAt(0).toUpperCase() + selectedTrade.status.slice(1).toLowerCase()}
+                        </span>
+                        <button
+                          type="button"
+                          className="report-trade-drawer__close"
+                          aria-label="Close Trade Details"
+                          onClick={() => setTradeDetailsOpen(false)}
+                        >
+                          <X size={14} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </header>
+
+                    <div className="report-trade-drawer__body">
+                      <section className="report-trade-drawer__section" aria-labelledby="trade-overview-title">
+                        <h5 id="trade-overview-title">Trade Overview</h5>
+                        <dl className="report-trade-drawer__overview">
+                          <div><dt>Trade ID</dt><dd>TRD-{String(selectedTrade.number).padStart(6, '0')}</dd></div>
+                          <div><dt>Setup ID</dt><dd>STP-{String(selectedTrade.setup.number).padStart(6, '0')}</dd></div>
+                          <div>
+                            <dt>Direction</dt>
+                            <dd className={selectedTrade.side === 'LONG' ? 'positive' : 'negative'}>{selectedTrade.side}</dd>
+                          </div>
+                          <div><dt>Timeframe</dt><dd>5m</dd></div>
+                          <div><dt>Entry Time</dt><dd>{formatTradeDetailsTime(selectedTrade.time)}</dd></div>
+                          <div><dt>Exit Time</dt><dd>{formatTradeDetailsTime(selectedTrade.endTime)}</dd></div>
+                        </dl>
+                      </section>
+
+                      <section className="report-trade-drawer__section" aria-labelledby="trade-execution-title">
+                        <h5 id="trade-execution-title">Execution</h5>
+                        <table className="report-trade-drawer__execution">
+                          <thead><tr><th>Field</th><th>Value</th></tr></thead>
+                          <tbody>
+                            <tr><td>Entry Price</td><td>{selectedTrade.entryPrice.toLocaleString('en-US', { maximumFractionDigits: 8 })}</td></tr>
+                            <tr><td>Exit Price</td><td>{selectedTrade.exitPrice.toLocaleString('en-US', { maximumFractionDigits: 8 })}</td></tr>
+                            <tr><td>Stop Loss</td><td>{selectedTrade.stopLoss.toLocaleString('en-US', { maximumFractionDigits: 8 })}</td></tr>
+                            <tr><td>Take Profit</td><td>{selectedTrade.pnl > 0
+                              ? selectedTrade.exitPrice.toLocaleString('en-US', { maximumFractionDigits: 8 })
+                              : '—'}</td></tr>
+                            <tr><td>Quantity</td><td>{selectedTrade.volume.toLocaleString('en-US', { maximumFractionDigits: 8 })}</td></tr>
+                          </tbody>
+                        </table>
+                      </section>
+
+                      <section className="report-trade-drawer__section" aria-labelledby="trade-performance-title">
+                        <h5 id="trade-performance-title">Risk &amp; Performance</h5>
+                        <dl className="report-trade-drawer__performance">
+                          <div>
+                            <dt>Risk/Reward</dt>
+                            <dd>{selectedTradeR === null ? '—' : `${selectedTradeR > 0 ? '+' : ''}${selectedTradeR.toFixed(2)}R`}</dd>
+                          </div>
+                          <div>
+                            <dt>PnL</dt>
+                            <dd className={selectedTrade.pnl >= 0 ? 'positive' : 'negative'}>
+                              {`${selectedTrade.pnl > 0 ? '+' : ''}${USDT_FORMAT.format(selectedTrade.pnl)} USDT`}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Risk Amount</dt>
+                            <dd>{`${USDT_FORMAT.format(Math.abs(selectedTrade.entryPrice - selectedTrade.stopLoss) * selectedTrade.volume)} USDT`}</dd>
+                          </div>
+                          <div>
+                            <dt>Return</dt>
+                            <dd className={selectedTrade.pnl >= 0 ? 'positive' : 'negative'}>
+                              {selectedTradeR === null ? '—' : `${selectedTradeR > 0 ? '+' : ''}${selectedTradeR.toFixed(2)}R`}
+                            </dd>
+                          </div>
+                        </dl>
+                      </section>
                     </div>
-                    <div>
-                      <span>Result</span>
-                      <strong className={selectedTrade.pnl >= 0 ? 'positive' : 'negative'}>
-                        {selectedTradeR === null ? '—' : `${selectedTradeR > 0 ? '+' : ''}${selectedTradeR.toFixed(1)}R`}
-                      </strong>
-                    </div>
+                  </aside>
+                )}
+              </div>
+            </>
+          )}
+        </section>
+      )}
+      {activeReportTab === 'LTF Setup Explorer' && (
+        <section className="report-ltf-explorer" aria-labelledby="ltf-setup-explorer-title">
+          <label className="report-explorer__search">
+            <Search size={13} aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="Search Setup ID"
+              placeholder="Search Setup ID..."
+              value={setupSearch}
+              onChange={(event) => setSetupSearch(event.target.value)}
+            />
+          </label>
+
+          {explorerDataLoading || tradeDataLoading ? (
+            <p className="report-ltf-explorer__message">Loading setup data…</p>
+          ) : explorerDataError || tradeDataError ? (
+            <p className="report-ltf-explorer__message" role="alert">{explorerDataError ?? tradeDataError}</p>
+          ) : (
+            <>
+              <section className="report-ltf-explorer__list" aria-labelledby="ltf-setup-explorer-title">
+                <header className="report-ltf-explorer__section-heading">
+                  <h3 id="ltf-setup-explorer-title">Setup List</h3>
+                  <span>
+                    {filteredSetupExplorerRows.length > 0
+                      ? `1–${filteredSetupExplorerRows.length} of ${setupExplorerRows.length}`
+                      : `0 of ${setupExplorerRows.length}`}
+                  </span>
+                </header>
+                <div className="report-ltf-explorer__table-wrap">
+                  <table className="report-ltf-explorer__table report-ltf-explorer__setup-table">
+                    <thead>
+                      <tr>
+                        <th>Setup ID</th>
+                        <th>HTF Event</th>
+                        <th>Direction</th>
+                        <th>HTF MS</th>
+                        <th>Created</th>
+                        <th>LTF MS</th>
+                        <th>Active / Invalid</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredSetupExplorerRows.map((setup) => {
+                        const activeCount = setup.ltfMarketStructures.filter((structure) => structure.invalidAt === null).length;
+                        const invalidCount = setup.ltfMarketStructures.length - activeCount;
+                        const isSelected = selectedSetupExplorerRow?.id === setup.id;
+                        return (
+                          <tr
+                            key={setup.id}
+                            className={isSelected ? 'report-ltf-explorer__row--selected' : ''}
+                            tabIndex={0}
+                            aria-selected={isSelected}
+                            onClick={() => {
+                              setSelectedExplorerSetupId(setup.id);
+                              setLtfSearch('');
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                setSelectedExplorerSetupId(setup.id);
+                                setLtfSearch('');
+                              }
+                            }}
+                          >
+                            <td>
+                              <button
+                                type="button"
+                                className="report-ltf-explorer__id"
+                                aria-pressed={isSelected}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setSelectedExplorerSetupId(setup.id);
+                                  setLtfSearch('');
+                                }}
+                              >
+                                S-{String(setup.number).padStart(3, '0')}
+                              </button>
+                            </td>
+                            <td>{setup.htfEvent?.toUpperCase() ?? '—'}</td>
+                            <td>
+                              <span className={`report-ltf-explorer__direction report-ltf-explorer__direction--${setup.direction.toLowerCase()}`}>
+                                {setup.direction}
+                              </span>
+                            </td>
+                            <td>{setup.htfNumber === null ? '—' : `HTF-${String(setup.htfNumber).padStart(2, '0')}`}</td>
+                            <td>{formatExplorerTime(setup.time)}</td>
+                            <td>{setup.ltfMarketStructures.length}</td>
+                            <td>{activeCount} / {invalidCount}</td>
+                            <td>
+                              <span className={`report-ltf-explorer__status${setup.endTime === null ? ' report-ltf-explorer__status--active' : ' report-ltf-explorer__status--invalid'}`}>
+                                {setup.endTime === null ? 'Active' : 'Invalid'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {filteredSetupExplorerRows.length === 0 && (
+                        <tr><td className="report-ltf-explorer__empty" colSpan={8}>No setups match this search.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              {selectedSetupExplorerRow ? (
+                <section className="report-ltf-explorer__list" aria-labelledby="ltf-market-structure-title">
+                  <label className="report-explorer__search">
+                    <Search size={13} aria-hidden="true" />
+                    <input
+                      type="search"
+                      aria-label="Search LTF MS ID"
+                      placeholder="Search LTF MS ID..."
+                      value={ltfSearch}
+                      onChange={(event) => setLtfSearch(event.target.value)}
+                    />
+                  </label>
+                  <header className="report-ltf-explorer__section-heading">
+                    <h3 id="ltf-market-structure-title">Market Structure List</h3>
+                    <span>{filteredLtfExplorerRows.length} structures</span>
+                  </header>
+                  <div className="report-ltf-explorer__table-wrap">
+                    <table className="report-ltf-explorer__table report-ltf-explorer__ltf-table">
+                      <thead>
+                        <tr>
+                          <th>LTF MS ID</th>
+                          <th>Event</th>
+                          <th>Direction</th>
+                          <th>Previous Bias</th>
+                          <th>Created</th>
+                          <th>Invalid At</th>
+                          <th>POIs</th>
+                          <th>Trades</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredLtfExplorerRows.map((structure) => (
+                          <tr key={structure.number}>
+                            <td>{structure.id}</td>
+                            <td>{structure.event.toUpperCase()}</td>
+                            <td>
+                              <span className={`report-ltf-explorer__direction report-ltf-explorer__direction--${structure.bias.toLowerCase()}`}>
+                                {structure.bias === 'BULLISH' ? 'Bullish' : 'Bearish'}
+                              </span>
+                            </td>
+                            <td>{structure.previousBias === null
+                              ? '—'
+                              : structure.previousBias === 'BULLISH' ? 'Bullish' : 'Bearish'}</td>
+                            <td>{formatExplorerTime(structure.time)}</td>
+                            <td>{formatExplorerTime(structure.invalidAt)}</td>
+                            <td>{structure.poiCount}</td>
+                            <td>{structure.tradeCount}</td>
+                            <td>
+                              <span className={`report-ltf-explorer__status${structure.invalidAt === null ? ' report-ltf-explorer__status--active' : ' report-ltf-explorer__status--invalid'}`}>
+                                {structure.invalidAt === null ? 'Active' : 'Invalid'}
+                              </span>
+                            </td>
+                            <td className="report-ltf-explorer__actions-cell">
+                              <div
+                                className="report-ltf-explorer__actions"
+                                ref={openActionsMenu?.type === 'ltf' && openActionsMenu.number === structure.number
+                                  ? actionMenuRef
+                                  : null}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Escape') setOpenActionsMenu(null);
+                                }}
+                              >
+                                <button
+                                  type="button"
+                                  className="report-ltf-explorer__actions-trigger"
+                                  aria-label={`Actions for ${structure.id}`}
+                                  aria-haspopup="menu"
+                                  aria-expanded={openActionsMenu?.type === 'ltf' && openActionsMenu.number === structure.number}
+                                  onClick={() => setOpenActionsMenu(
+                                    openActionsMenu?.type === 'ltf' && openActionsMenu.number === structure.number
+                                      ? null
+                                      : { type: 'ltf', number: structure.number },
+                                  )}
+                                >
+                                  <MoreHorizontal size={15} aria-hidden="true" />
+                                </button>
+                                {openActionsMenu?.type === 'ltf' && openActionsMenu.number === structure.number && (
+                                  <div className="report-ltf-explorer__actions-menu" role="menu" aria-label={`${structure.id} actions`}>
+                                    <div className="report-ltf-explorer__actions-heading">{structure.id} · ACTIONS</div>
+                                    <button type="button" role="menuitem" className="report-ltf-explorer__action-item" disabled>
+                                      <Eye size={13} aria-hidden="true" />
+                                      <span>View Details</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      role="menuitem"
+                                      className="report-ltf-explorer__action-item"
+                                      onClick={() => openLtfMarketStructure(selectedSetupExplorerRow.id, structure)}
+                                    >
+                                      <ChartCandlestick size={13} aria-hidden="true" />
+                                      <span>Open Chart</span>
+                                    </button>
+                                    <div className="report-ltf-explorer__actions-divider" />
+                                    <button type="button" role="menuitem" className="report-ltf-explorer__action-item" disabled>
+                                      <List size={13} aria-hidden="true" />
+                                      <span>View Structure Events</span>
+                                    </button>
+                                    <button type="button" role="menuitem" className="report-ltf-explorer__action-item" disabled>
+                                      <Layers size={13} aria-hidden="true" />
+                                      <span>View Related POIs</span>
+                                    </button>
+                                    <button type="button" role="menuitem" className="report-ltf-explorer__action-item" disabled>
+                                      <ChartLine size={13} aria-hidden="true" />
+                                      <span>View Related Trades</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {filteredLtfExplorerRows.length === 0 && (
+                          <tr><td className="report-ltf-explorer__empty" colSpan={10}>No market structures match this search.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </section>
+              ) : (
+                <p className="report-ltf-explorer__message">Chọn một Setup để mở màn hình LTF Market Structure Explorer.</p>
               )}
             </>
           )}
         </section>
       )}
-      {!['Overview', 'Trade Explorer'].includes(activeReportTab) && (
+      {!['Overview', 'Trade Explorer', 'LTF Setup Explorer'].includes(activeReportTab) && (
         <section className="report-tab-placeholder">
           <h3>{activeReportTab}</h3>
           <p>This report section is not available yet.</p>
