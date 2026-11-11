@@ -114,11 +114,10 @@ function formatTradeDetailsTime(timestamp: number): string {
 }
 
 export function Report({ symbol, mode, onSetSymbol }: ReportProps) {
-  const setActiveWorkspacePage = useWorkspaceStore((state) => state.setActiveWorkspacePage);
+  const navigateToWorkspace = useWorkspaceStore((state) => state.navigateToWorkspace);
   const setBacktestNavigationTarget = useWorkspaceStore((state) => state.setBacktestNavigationTarget);
   const setBacktestTimeRange = useWorkspaceStore((state) => state.setBacktestTimeRange);
   const setBacktestTimeframe = useWorkspaceStore((state) => state.setBacktestTimeframe);
-  const setMode = useWorkspaceStore((state) => state.setMode);
   const setReplayIndex = useWorkspaceStore((state) => state.setReplayIndex);
   const setSelectedSetupId = useWorkspaceStore((state) => state.setSelectedSetupId);
   const [direction, setDirection] = useState('All');
@@ -166,6 +165,7 @@ export function Report({ symbol, mode, onSetSymbol }: ReportProps) {
   }, [openActionsMenu]);
 
   const openLtfMarketStructure = (setupId: string, structure: LtfExplorerEntry) => {
+    navigateToWorkspace({ mode: 'backtest', activeWorkspacePage: 'chart' });
     setSelectedSetupId(setupId);
     setBacktestNavigationTarget({
       type: 'marketStructure',
@@ -176,13 +176,12 @@ export function Report({ symbol, mode, onSetSymbol }: ReportProps) {
     setBacktestTimeRange({ backtestTimeRangeFrom: '', backtestTimeRangeTo: '' });
     setBacktestTimeframe('ltf');
     setReplayIndex(0);
-    setMode('backtest');
-    setActiveWorkspacePage('chart');
     setOpenActionsMenu(null);
   };
 
   const openTradeChart = (trade: BacktestTrade) => {
     setTradeDetailsOpen(false);
+    navigateToWorkspace({ mode: 'backtest', activeWorkspacePage: 'chart' });
     setSelectedSetupId(trade.setup.id);
     setBacktestNavigationTarget({
       type: 'trade',
@@ -193,8 +192,6 @@ export function Report({ symbol, mode, onSetSymbol }: ReportProps) {
     setBacktestTimeRange({ backtestTimeRangeFrom: '', backtestTimeRangeTo: '' });
     setBacktestTimeframe('ltf');
     setReplayIndex(0);
-    setMode('backtest');
-    setActiveWorkspacePage('chart');
     setOpenActionsMenu(null);
   };
 

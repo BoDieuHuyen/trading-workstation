@@ -38,6 +38,8 @@ export const SYSTEM_CONFIG = {
       searchTitle: "Search",
     },
     page: {
+      back: "Back",
+      next: "Next",
       marketAnalysis: "MARKET ANALYSIS",
       marketOverview: "Market Overview",
       backtestOverview: "Backtest Overview",

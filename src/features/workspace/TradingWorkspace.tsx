@@ -6,7 +6,8 @@ import { TradingWorkspaceView } from './TradingWorkspaceView';
 export function TradingWorkspace() {
   const {
     sidebarCollapsed, activeTab, mode, selectedSymbol, toggleSidebar, setSidebarCollapsed,
-    activeWorkspacePage, setActiveTab, setActiveWorkspacePage, setMode, setSelectedSymbol,
+    activeWorkspacePage, setActiveTab, navigateToWorkspace, goBack, goForward,
+    setSelectedSymbol, workspaceHistory, workspaceForwardHistory,
   } = useWorkspaceStore();
   const klines = useBinanceKlines();
 
@@ -25,11 +26,14 @@ export function TradingWorkspace() {
       activeWorkspacePage={activeWorkspacePage}
       mode={mode}
       selectedSymbol={selectedSymbol}
+      canGoBack={workspaceHistory.length > 0}
+      canGoForward={workspaceForwardHistory.length > 0}
       klines={klines}
       onToggleSidebar={toggleSidebar}
       onSetActiveTab={setActiveTab}
-      onSetActiveWorkspacePage={setActiveWorkspacePage}
-      onSetMode={setMode}
+      onNavigateToWorkspace={navigateToWorkspace}
+      onGoBack={goBack}
+      onGoForward={goForward}
       onSetSelectedSymbol={setSelectedSymbol}
     />
   );

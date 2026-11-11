@@ -149,6 +149,12 @@ button { cursor: pointer; }
 .collapsed-icons { display: flex; flex-direction: column; align-items: center; gap: 12px; padding-top: 15px; }
 .main-area { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 14px 16px 12px; gap: 10px; overflow: hidden; }
 .page-heading { display: flex; align-items: center; min-height: 0; height: 34px; flex: 0 0 34px; }
+.page-heading__navigation { display: flex; align-items: center; gap: 7px; margin-left: auto; }
+.page-navigation-button { display: grid; place-items: center; width: 24px; height: 24px; flex: 0 0 24px; padding: 0; border: 1px solid #293b52; border-radius: 50%; color: #a9bad0; background: #172538; }
+.page-navigation-button:hover:not(:disabled) { color: #e5edf7; background: #22344a; border-color: #3a526f; }
+.page-navigation-button:disabled { color: #53647a; background: #111d2c; border-color: #223249; cursor: default; }
+.workspace-screen { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.workspace-screen[hidden] { display: none; }
 .eyebrow { color: #71849c; font-size: 9px; font-weight: 700; letter-spacing: 1.2px; margin-bottom: 5px; }
 .page-heading .eyebrow { margin-bottom: 2px; font-size: 7px; letter-spacing: .9px; }
 .page-heading h1 { margin: 0; color: #e5edf7; font-size: 13px; font-weight: 650; letter-spacing: -.22px; }
